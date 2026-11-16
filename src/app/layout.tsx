@@ -1,13 +1,12 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
-import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Siteflow | Construction Workforce Management",
-  description: "Manage construction crews, site projects, and daily attendance in one place.",
+  title: "Construction Site Attendance Management",
+  description: "Manage construction workers, sites, and daily attendance.",
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
     <html lang="en">
       <body>{children}</body>
