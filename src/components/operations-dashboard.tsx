@@ -185,93 +185,7 @@ export default function OperationsDashboard() {
   }
 
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <Link className="brand" href="/" aria-label="Construction operations home">
-          <span className="brand-mark">C</span>
-          <span className="brand-copy">
-            <strong>CONSTRUCT</strong>
-            <span>FIELD OPERATIONS</span>
-          </span>
-        </Link>
-
-        <div className="workspace-picker">
-          <span className="workspace-avatar">CO</span>
-          <span className="workspace-copy">
-            <strong>Company workspace</strong>
-            <small>Operations</small>
-          </span>
-          <span className="workspace-chevron" aria-hidden="true">⌄</span>
-        </div>
-
-        <nav className="primary-nav" aria-label="Main navigation">
-          <span className="nav-label">WORKSPACE</span>
-          <Link className="nav-link active" href="/" aria-current="page" aria-label="Overview">
-            <Icon name="overview" />
-            <span>Overview</span>
-          </Link>
-          <div className="nav-link nav-link-muted" aria-disabled="true">
-            <Icon name="projects" />
-            <span>Projects</span>
-            <span className="nav-soon">Planned</span>
-          </div>
-          <Link className="nav-link" href="/sites" aria-label="Sites">
-            <Icon name="sites" />
-            <span>Sites</span>
-          </Link>
-          <Link className="nav-link" href="/workers" aria-label="Workforce">
-            <Icon name="people" />
-            <span>Workforce</span>
-          </Link>
-          <Link className="nav-link" href="/attendance" aria-label="Attendance">
-            <Icon name="attendance" />
-            <span>Attendance</span>
-          </Link>
-
-          <span className="nav-label nav-label-spaced">OPERATIONS</span>
-          <div className="nav-link nav-link-muted" aria-disabled="true">
-            <Icon name="inventory" />
-            <span>Materials</span>
-            <span className="nav-soon">Planned</span>
-          </div>
-          <div className="nav-link nav-link-muted" aria-disabled="true">
-            <Icon name="safety" />
-            <span>Safety</span>
-            <span className="nav-soon">Planned</span>
-          </div>
-        </nav>
-
-        <div className="sidebar-footer">
-          <div className="sidebar-status">
-            <span className="status-orb" />
-            <span>Core operations</span>
-          </div>
-          <p>Sites, workforce, and attendance are available. More modules are in progress.</p>
-          <Link className="sidebar-cta" href="/attendance">
-            <span aria-hidden="true">+</span>
-            Record attendance
-          </Link>
-          <div className="sidebar-version">CONSTRUCTION OPERATIONS</div>
-        </div>
-      </aside>
-
-      <div className="content-area">
-        <header className="topbar">
-          <div className="breadcrumbs">
-            <span>Workspace</span>
-            <span className="breadcrumb-divider">/</span>
-            <strong>Overview</strong>
-          </div>
-          <div className="topbar-right">
-            <span className={`connection-state ${error ? "connection-error" : ""}`}>
-              <span className="connection-dot" />
-              {error ? "Data unavailable" : data ? "Live operations data" : "Connecting"}
-            </span>
-            <span className="topbar-avatar" aria-label="Company workspace">CO</span>
-          </div>
-        </header>
-
-        <main className="dashboard-main">
+    <main className="dashboard-main">
           <section className="page-heading">
             <div>
               <div className="eyebrow">OPERATIONS OVERVIEW</div>
@@ -505,8 +419,6 @@ export default function OperationsDashboard() {
             <span>Construction Operations</span>
             <span>Live data is limited to the currently implemented sites and attendance modules.</span>
           </footer>
-        </main>
-      </div>
-    </div>
+    </main>
   );
 }
