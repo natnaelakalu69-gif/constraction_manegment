@@ -49,6 +49,7 @@ export const attendance = pgTable("attendance", {
   status: attendanceStatus("status").notNull(),
   notes: varchar("notes", { length: 500 }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  loggedInAt: timestamp("logged_in_at").defaultNow().notNull(),
 }, (t) => ({
   workerDateUnique: uniqueIndex("attendance_worker_date_unique")
     .on(t.workerId, t.attendanceDate),

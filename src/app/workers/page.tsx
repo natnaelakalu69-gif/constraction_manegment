@@ -68,6 +68,19 @@ export default function WorkersPage() {
 
   async function addWorker(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const workerCode = form.workerCode.trim();
+    const fullName = form.fullName.trim();
+    const position = form.position.trim();
+
+    if (!workerCode || !fullName || !position) {
+      setError("Worker code, full name, and position are required.");
+      return;
+    }
+    if (workers.some((worker) => worker.workerCode.toLowerCase() === workerCode.toLowerCase())) {
+      setError(`Worker code "${workerCode}" already exists.`);
+      return;
+    }
+
     setIsSaving(true);
     setError(null);
     setSuccess(null);
@@ -75,7 +88,14 @@ export default function WorkersPage() {
       await fetchJson<Worker>("/api/workers", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          ...form,
+          workerCode,
+          fullName,
+          position,
+          department: form.department.trim(),
+          phone: form.phone.trim(),
+        }),
       });
       setForm(emptyForm);
       setSuccess("Worker added.");

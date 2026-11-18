@@ -1,27 +1,51 @@
 import { NextResponse } from "next/server";
-import { desc, eq } from "drizzle-orm";
+import { desc } from "drizzle-orm";
 import { db } from "@/db";
 import { workers } from "@/db/schema";
+import { isUniqueConstraintViolation } from "@/lib/postgres-errors";
 
 export async function GET() {
   return NextResponse.json(await db.select().from(workers).orderBy(desc(workers.id)));
 }
 
 export async function POST(req: Request) {
+  let body: unknown;
   try {
-    const b = await req.json();
-    if (!b.workerCode || !b.fullName || !b.position) return NextResponse.json({ error: "workerCode, fullName and position are required" }, { status: 400 });
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Request body must be valid JSON." }, { status: 400 });
+  }
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return NextResponse.json({ error: "Request body must be a JSON object." }, { status: 400 });
+  }
+
+  const fields = body as Record<string, unknown>;
+  const workerCode = typeof fields.workerCode === "string" ? fields.workerCode.trim() : "";
+  const fullName = typeof fields.fullName === "string" ? fields.fullName.trim() : "";
+  const position = typeof fields.position === "string" ? fields.position.trim() : "";
+  if (!workerCode || !fullName || !position) {
+    return NextResponse.json({ error: "workerCode, fullName and position are required." }, { status: 400 });
+  }
+
+  try {
     const [worker] = await db.insert(workers).values({
-      workerCode: String(b.workerCode),
-      fullName: String(b.fullName),
-      phone: b.phone ? String(b.phone) : null,
-      position: String(b.position),
-      department: b.department ? String(b.department) : null,
-      hireDate: b.hireDate ? String(b.hireDate) : null,
-      status: b.status === "INACTIVE" ? "INACTIVE" : "ACTIVE",
+      workerCode,
+      fullName,
+      phone: typeof fields.phone === "string" && fields.phone.trim() ? fields.phone.trim() : null,
+      position,
+      department: typeof fields.department === "string" && fields.department.trim() ? fields.department.trim() : null,
+      hireDate: typeof fields.hireDate === "string" && fields.hireDate ? fields.hireDate : null,
+      status: fields.status === "INACTIVE" ? "INACTIVE" : "ACTIVE",
     }).returning();
     return NextResponse.json(worker, { status: 201 });
-  } catch {
-    return NextResponse.json({ error: "Worker code may already exist" }, { status: 409 });
+  } catch (error) {
+    if (isUniqueConstraintViolation(error)) {
+      return NextResponse.json({ error: `Worker code "${workerCode}" already exists.` }, { status: 409 });
+    }
+    console.error("Failed to create worker:", error);
+    return NextResponse.json(
+      { error: "The worker could not be created. Check that the database is available and migrations have been applied." },
+      { status: 500 }
+    );
   }
 }

@@ -1,0 +1,1 @@
+ALTER TABLE "attendance" ADD COLUMN "logged_in_at" timestamp DEFAULT now() NOT NULL;

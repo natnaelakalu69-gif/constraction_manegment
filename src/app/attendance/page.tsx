@@ -13,6 +13,7 @@ type AttendanceRecord = {
   checkOut: string | null;
   status: string;
   notes: string | null;
+  loggedInAt: string | null;
 };
 type AttendanceForm = {
   workerId: string;
@@ -23,6 +24,19 @@ type AttendanceForm = {
   status: "PRESENT" | "ABSENT" | "LATE" | "LEAVE";
   notes: string;
 };
+
+function formatLoggedInAt(value: string | null) {
+  if (!value) return "—";
+  const timestamp = new Date(value);
+  if (Number.isNaN(timestamp.getTime())) return "—";
+  return new Intl.DateTimeFormat("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(timestamp);
+}
 
 function createForm(): AttendanceForm {
   return {
@@ -125,7 +139,7 @@ export default function AttendancePage() {
       <section className="management-card">
         <div className="management-card-heading">
           <h2>Record attendance</h2>
-          <p>Saving again for the same worker and date updates that entry.</p>
+          <p>Saving again for the same worker and date updates that entry and its recorded login time.</p>
         </div>
         <form className="management-form" onSubmit={saveAttendance}>
           <label>
@@ -192,7 +206,7 @@ export default function AttendancePage() {
         <div className="management-table-wrap">
           <table className="management-table">
             <thead>
-              <tr><th scope="col">Worker</th><th scope="col">Site</th><th scope="col">Check-in</th><th scope="col">Check-out</th><th scope="col">Status</th><th scope="col">Notes</th></tr>
+              <tr><th scope="col">Worker</th><th scope="col">Site</th><th scope="col">Check-in</th><th scope="col">Check-out</th><th scope="col">Logged in at</th><th scope="col">Status</th><th scope="col">Notes</th></tr>
             </thead>
             <tbody>
               {records.map((record) => (
@@ -200,11 +214,12 @@ export default function AttendancePage() {
                   <td>{workers.find((worker) => worker.id === record.workerId)?.fullName ?? `#${record.workerId}`}</td>
                   <td>{sites.find((site) => site.id === record.siteId)?.siteName ?? `#${record.siteId}`}</td>
                   <td>{record.checkIn || "—"}</td><td>{record.checkOut || "—"}</td>
+                  <td>{formatLoggedInAt(record.loggedInAt)}</td>
                   <td>{record.status}</td><td>{record.notes || "—"}</td>
                 </tr>
               ))}
-              {isLoading && <tr><td className="management-empty" colSpan={6}>Loading attendance…</td></tr>}
-              {!isLoading && !error && records.length === 0 && <tr><td className="management-empty" colSpan={6}>No attendance entries for this date.</td></tr>}
+              {isLoading && <tr><td className="management-empty" colSpan={7}>Loading attendance…</td></tr>}
+              {!isLoading && !error && records.length === 0 && <tr><td className="management-empty" colSpan={7}>No attendance entries for this date.</td></tr>}
             </tbody>
           </table>
         </div>

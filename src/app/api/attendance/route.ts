@@ -25,6 +25,8 @@ export async function POST(req: Request) {
     workerId: Number(b.workerId), siteId: Number(b.siteId),
     attendanceDate: String(b.attendanceDate), checkIn: b.checkIn ?? null,
     checkOut: b.checkOut ?? null, status: b.status, notes: b.notes ?? null,
+    // Always set by the server so the recorded login time cannot be spoofed by the client.
+    loggedInAt: new Date(),
   };
 
   if (existing) {

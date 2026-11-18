@@ -60,6 +60,19 @@ export default function SitesPage() {
 
   async function addSite(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const siteCode = form.siteCode.trim();
+    const siteName = form.siteName.trim();
+    const location = form.location.trim();
+
+    if (!siteCode || !siteName || !location) {
+      setError("Site code, site name, and location are required.");
+      return;
+    }
+    if (sites.some((site) => site.siteCode.toLowerCase() === siteCode.toLowerCase())) {
+      setError(`Site code "${siteCode}" already exists.`);
+      return;
+    }
+
     setIsSaving(true);
     setError(null);
     setSuccess(null);
@@ -67,7 +80,13 @@ export default function SitesPage() {
       await fetchJson<Site>("/api/sites", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          ...form,
+          siteCode,
+          siteName,
+          location,
+          managerName: form.managerName.trim(),
+        }),
       });
       setForm(emptyForm);
       setSuccess("Site added.");
