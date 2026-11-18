@@ -41,8 +41,11 @@ Never commit `.env` or secrets. Production configuration will be completed along
 - `GET/POST /api/sites`, `GET/PUT/DELETE /api/sites/:id`
 - `GET/POST /api/attendance?date=YYYY-MM-DD`
 - `GET /api/reports/daily?date=YYYY-MM-DD`
+- `GET/POST /api/modules/:resource` for `projects`, `work-packages`, `progress-records`, `budgets`, `project-costs`, `materials`, `inventory-transactions`, `equipment`, `equipment-usage`, `safety-incidents`, `quality-inspections`, and `quality-defects`
 
 These legacy endpoints are not yet the planned `/api/v1` API and do not satisfy the full security, validation, pagination, or RBAC requirements. They will be migrated in subsequent phases.
+
+The `/projects`, `/materials`, and `/safety` pages provide basic create-and-list screens for the corresponding enterprise tables. All enterprise records are scoped to the first company in the database; a default company is created automatically on first use because company switching is not implemented yet.
 
 ## Planned development commands
 

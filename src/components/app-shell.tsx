@@ -6,16 +6,22 @@ import type { ReactNode } from "react";
 
 const navigation = [
   { href: "/", label: "Overview", icon: "O" },
+  { href: "/projects", label: "Projects", icon: "P" },
   { href: "/sites", label: "Sites", icon: "S" },
   { href: "/workers", label: "Workforce", icon: "W" },
   { href: "/attendance", label: "Attendance", icon: "A" },
+  { href: "/materials", label: "Materials", icon: "M" },
+  { href: "/safety", label: "Safety & quality", icon: "Q" },
 ];
 
 const pageTitles: Record<string, string> = {
   "/": "Overview",
+  "/projects": "Projects",
   "/sites": "Sites",
   "/workers": "Workforce",
   "/attendance": "Attendance",
+  "/materials": "Materials",
+  "/safety": "Safety & quality",
 };
 
 export default function AppShell({ children }: { children: ReactNode }) {
@@ -58,17 +64,6 @@ export default function AppShell({ children }: { children: ReactNode }) {
               </Link>
             );
           })}
-          <span className="nav-label nav-label-spaced">OPERATIONS</span>
-          <div className="nav-link nav-link-muted" aria-disabled="true">
-            <span className="nav-icon" aria-hidden="true">M</span>
-            <span>Materials</span>
-            <span className="nav-soon">Planned</span>
-          </div>
-          <div className="nav-link nav-link-muted" aria-disabled="true">
-            <span className="nav-icon" aria-hidden="true">Q</span>
-            <span>Safety &amp; quality</span>
-            <span className="nav-soon">Planned</span>
-          </div>
         </nav>
 
         <div className="sidebar-footer">
@@ -76,7 +71,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
             <span className="status-orb" />
             <span>Core operations</span>
           </div>
-          <p>Sites, workforce, and attendance are available. More modules are in progress.</p>
+          <p>Projects, sites, workforce, attendance, materials and safety are available.</p>
           <Link className="sidebar-cta" href="/attendance">
             <span aria-hidden="true">+</span>
             Record attendance

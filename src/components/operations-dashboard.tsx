@@ -394,24 +394,24 @@ export default function OperationsDashboard() {
                 <div className="eyebrow">BUILDING OUT</div>
                 <h2>More of your operation, coming together.</h2>
               </div>
-              <span className="roadmap-badge">IN PROGRESS</span>
+              <span className="roadmap-badge">AVAILABLE</span>
             </div>
             <div className="module-grid">
-              <article className="module-card">
+              <Link className="module-card" href="/projects">
                 <span className="module-icon module-indigo"><Icon name="projects" /></span>
-                <div><strong>Project controls</strong><p>Budgets, milestones, and progress tracking.</p></div>
-                <span className="module-status">Planned</span>
-              </article>
-              <article className="module-card">
+                <div><strong>Project controls</strong><p>Budgets, work packages, and progress tracking.</p></div>
+                <span className="module-status">Open</span>
+              </Link>
+              <Link className="module-card" href="/materials">
                 <span className="module-icon module-teal"><Icon name="inventory" /></span>
-                <div><strong>Materials & equipment</strong><p>Inventory, procurement, and asset visibility.</p></div>
-                <span className="module-status">Planned</span>
-              </article>
-              <article className="module-card">
+                <div><strong>Materials & equipment</strong><p>Materials, stock movements, and asset visibility.</p></div>
+                <span className="module-status">Open</span>
+              </Link>
+              <Link className="module-card" href="/safety">
                 <span className="module-icon module-orange"><Icon name="safety" /></span>
-                <div><strong>Safety & quality</strong><p>Inspections, issues, and site records.</p></div>
-                <span className="module-status">Planned</span>
-              </article>
+                <div><strong>Safety & quality</strong><p>Incidents, inspections, and defect records.</p></div>
+                <span className="module-status">Open</span>
+              </Link>
             </div>
           </section>
 
