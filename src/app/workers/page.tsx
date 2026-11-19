@@ -90,6 +90,26 @@ export default function WorkersPage() {
     setSuccess(null);
   }
 
+  async function removeWorker(worker: Worker) {
+    if (!window.confirm(`Delete worker "${worker.fullName}"? This cannot be undone.`)) return;
+    setIsSaving(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      await fetchJson(`/api/workers/${worker.id}`, { method: "DELETE" });
+      if (editingId === worker.id) {
+        setEditingId(null);
+        setForm(emptyForm);
+      }
+      setSuccess("Worker deleted.");
+      await loadWorkers();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Worker could not be deleted.");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
   async function addWorker(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const editing = editingId !== null;
@@ -215,9 +235,14 @@ export default function WorkersPage() {
                   <td>{worker.workerCode}</td><td>{worker.fullName}</td><td>{worker.position}</td>
                   <td>{worker.department || "—"}</td><td>{worker.phone || "—"}</td><td>{worker.status}</td>
                   <td>
-                    <button className="button button-secondary row-action" type="button" onClick={() => startEdit(worker)} disabled={isSaving}>
-                      Edit
-                    </button>
+                    <div className="row-actions">
+                      <button className="button button-secondary row-action" type="button" onClick={() => startEdit(worker)} disabled={isSaving}>
+                        Edit
+                      </button>
+                      <button className="button button-danger row-action" type="button" onClick={() => void removeWorker(worker)} disabled={isSaving}>
+                        Delete
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

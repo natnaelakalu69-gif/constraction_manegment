@@ -123,6 +123,27 @@ export default function AttendancePage() {
     setSuccess(null);
   }
 
+  async function removeAttendance(record: AttendanceRecord) {
+    const workerName = workers.find((worker) => worker.id === record.workerId)?.fullName ?? `#${record.workerId}`;
+    if (!window.confirm(`Delete attendance for ${workerName} on ${form.attendanceDate}? This cannot be undone.`)) return;
+    setIsSaving(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      await fetchJson(`/api/attendance?id=${record.id}`, { method: "DELETE" });
+      if (editingId === record.id) {
+        setEditingId(null);
+        setForm(createForm());
+      }
+      setSuccess("Attendance entry deleted.");
+      await refreshData();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Attendance entry could not be deleted.");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
   async function saveAttendance(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIsSaving(true);
@@ -252,9 +273,14 @@ export default function AttendancePage() {
                   <td>{formatLoggedInAt(record.loggedInAt)}</td>
                   <td>{record.status}</td><td>{record.notes || "—"}</td>
                   <td>
-                    <button className="button button-secondary row-action" type="button" onClick={() => startEdit(record)} disabled={isSaving}>
-                      Edit
-                    </button>
+                    <div className="row-actions">
+                      <button className="button button-secondary row-action" type="button" onClick={() => startEdit(record)} disabled={isSaving}>
+                        Edit
+                      </button>
+                      <button className="button button-danger row-action" type="button" onClick={() => void removeAttendance(record)} disabled={isSaving}>
+                        Delete
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

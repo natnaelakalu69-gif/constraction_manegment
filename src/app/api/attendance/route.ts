@@ -36,3 +36,11 @@ export async function POST(req: Request) {
   const [created] = await db.insert(attendance).values(values).returning();
   return NextResponse.json(created, { status: 201 });
 }
+
+export async function DELETE(req: Request) {
+  const id = Number(new URL(req.url).searchParams.get("id"));
+  if (!Number.isInteger(id) || id <= 0) return NextResponse.json({ error: "Invalid id." }, { status: 400 });
+  const [deleted] = await db.delete(attendance).where(eq(attendance.id, id)).returning({ id: attendance.id });
+  if (!deleted) return NextResponse.json({ error: "Attendance entry not found" }, { status: 404 });
+  return NextResponse.json({ message: "Attendance entry deleted" });
+}

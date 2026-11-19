@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { workers } from "@/db/schema";
+import { isForeignKeyViolation } from "@/lib/postgres-errors";
 
 export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const id = Number((await ctx.params).id);
@@ -16,6 +17,15 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
 
 export async function DELETE(_: Request, ctx: { params: Promise<{ id: string }> }) {
   const id = Number((await ctx.params).id);
-  await db.delete(workers).where(eq(workers.id, id));
-  return NextResponse.json({ message: "Worker deleted" });
+  if (!Number.isInteger(id) || id <= 0) return NextResponse.json({ error: "Invalid id." }, { status: 400 });
+  try {
+    const [deleted] = await db.delete(workers).where(eq(workers.id, id)).returning({ id: workers.id });
+    if (!deleted) return NextResponse.json({ error: "Worker not found" }, { status: 404 });
+    return NextResponse.json({ message: "Worker deleted" });
+  } catch (error) {
+    if (isForeignKeyViolation(error)) {
+      return NextResponse.json({ error: "This worker is referenced by attendance or other records and cannot be deleted." }, { status: 409 });
+    }
+    throw error;
+  }
 }

@@ -611,6 +611,16 @@ a.nav-link:hover {
   background: #3e5dc4;
 }
 
+.button-danger {
+  border-color: #e5b4b4;
+  background: #fff;
+  color: #b42318;
+}
+
+.button-danger:hover:not(:disabled) {
+  background: #fef3f2;
+}
+
 .button-primary > span {
   font-size: 17px;
   font-weight: 400;
@@ -1459,6 +1469,12 @@ a.nav-link:hover {
 .row-action {
   padding: 6px 10px;
   font-size: 12px;
+}
+
+.row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
 .editing-row {

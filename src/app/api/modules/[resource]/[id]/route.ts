@@ -6,7 +6,7 @@ import {
   equipmentUsage, inventoryTransactions, materials, progressRecords, projectCosts,
   projects, qualityDefects, qualityInspections, safetyIncidents, safetyInspections, workPackages,
 } from "@/db/schema/enterprise";
-import { isUniqueConstraintViolation } from "@/lib/postgres-errors";
+import { isForeignKeyViolation, isUniqueConstraintViolation } from "@/lib/postgres-errors";
 import { getWorkspaceCompanyId } from "@/lib/workspace";
 
 class BadRequest extends Error {}
@@ -195,5 +195,29 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ resource: str
     if (isUniqueConstraintViolation(error)) return NextResponse.json({ error: "A record with that code already exists." }, { status: 409 });
     console.error("Failed to update module record:", error);
     return NextResponse.json({ error: "The record could not be updated." }, { status: 500 });
+  }
+}
+
+export async function DELETE(_req: Request, ctx: { params: Promise<{ resource: string; id: string }> }) {
+  const { resource, id: rawId } = await ctx.params;
+  const table = TABLES[resource];
+  if (!table) return NextResponse.json({ error: "Deletes are not supported for this resource." }, { status: 404 });
+
+  const id = Number.parseInt(rawId, 10);
+  if (!Number.isInteger(id) || id <= 0) return NextResponse.json({ error: "Invalid id." }, { status: 400 });
+
+  try {
+    const companyId = await getWorkspaceCompanyId();
+    const [deleted] = await db.delete(table)
+      .where(and(eq(table.id, id), eq(table.companyId, companyId)))
+      .returning({ id: table.id });
+    if (!deleted) return NextResponse.json({ error: "Record not found." }, { status: 404 });
+    return NextResponse.json({ id, deleted: true });
+  } catch (error) {
+    if (isForeignKeyViolation(error)) {
+      return NextResponse.json({ error: "This record is referenced by other records and cannot be deleted." }, { status: 409 });
+    }
+    console.error("Failed to delete module record:", error);
+    return NextResponse.json({ error: "The record could not be deleted." }, { status: 500 });
   }
 }

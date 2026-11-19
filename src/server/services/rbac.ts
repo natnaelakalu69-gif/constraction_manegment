@@ -247,6 +247,17 @@ export async function updatePermission(id: number, b: Body) {
   return permission;
 }
 
+export async function deletePermission(id: number) {
+  const [permission] = await db.select({ code: permissions.code }).from(permissions)
+    .where(eq(permissions.id, id)).limit(1);
+  if (!permission) throw new RbacError("Permission not found.", 404);
+  if (DEFAULT_PERMISSIONS.some((item) => item.code === permission.code)) {
+    throw new RbacError("Default permissions cannot be deleted.", 403);
+  }
+  await db.delete(permissions).where(eq(permissions.id, id));
+  return { id, deleted: true };
+}
+
 export async function createUser(b: Body) {
   const email = requiredText(b, "email").toLowerCase();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new RbacError("A valid email is required.");
@@ -290,6 +301,15 @@ export async function updateUser(id: number, b: Body) {
     .where(and(eq(appUsers.id, id), eq(appUsers.companyId, companyId)))
     .returning({ id: appUsers.id, email: appUsers.email, fullName: appUsers.fullName, isActive: appUsers.isActive });
   return updated;
+}
+
+export async function deleteUser(id: number) {
+  const companyId = await getWorkspaceCompanyId();
+  const [deleted] = await db.delete(appUsers)
+    .where(and(eq(appUsers.id, id), eq(appUsers.companyId, companyId)))
+    .returning({ id: appUsers.id });
+  if (!deleted) throw new RbacError("User not found.", 404);
+  return { id, deleted: true };
 }
 
 export async function grantPermission(b: Body) {

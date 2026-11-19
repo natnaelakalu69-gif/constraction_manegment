@@ -39,17 +39,18 @@ Never commit `.env` or secrets. Production configuration will be completed along
 - `POST /api/auth/login`
 - `GET/POST /api/workers`, `GET/PUT/DELETE /api/workers/:id`
 - `GET/POST /api/sites`, `GET/PUT/DELETE /api/sites/:id`
-- `GET/POST /api/attendance?date=YYYY-MM-DD`
+- `GET/POST /api/attendance?date=YYYY-MM-DD`, `DELETE /api/attendance?id=…`
 - `GET /api/reports/daily?date=YYYY-MM-DD`
 - `GET /api/reports/daily-operations?date=YYYY-MM-DD` — combined attendance, plans, progress, materials, safety and outstanding issues
 - `GET/POST /api/modules/:resource` for `projects`, `work-packages`, `progress-records`, `budgets`, `project-costs`, `materials`, `inventory-transactions`, `equipment`, `equipment-usage`, `safety-incidents`, `quality-inspections`, `quality-defects`, `daily-plans`, `daily-plan-tasks`, `daily-site-reports`, `daily-follow-ups`, and `safety-inspections`
 - `PATCH /api/modules/:resource/:id` updates any editable field on every module resource listed above (per-resource field whitelist); `daily-site-reports` also sets `reviewedAt` when status becomes `approved` or `rejected`
-- `GET/POST /api/roles` — role snapshot and role creation; `PATCH/DELETE /api/roles/:id` for custom roles (default roles allow description edits only)
-- `POST/PATCH /api/roles/permissions[/:id]`, `POST/PATCH /api/roles/users[/:id]`, and `POST/DELETE /api/roles/grants` for permissions, users and grants
+- `DELETE /api/modules/:resource/:id` deletes a record company-scoped; referenced records return HTTP 409
+- `GET/POST /api/roles` — role snapshot and role creation; `PATCH/DELETE /api/roles/:id` for custom roles (default roles allow description edits only, and cannot be deleted)
+- `POST/PATCH/DELETE /api/roles/permissions[/:id]` and `POST/PATCH/DELETE /api/roles/users[/:id]` for permissions and users; `POST/DELETE /api/roles/grants` for grants. Default permissions cannot be deleted.
 
 These legacy endpoints are not yet the planned `/api/v1` API and do not satisfy the full security, validation, pagination, or RBAC requirements. They will be migrated in subsequent phases.
 
-The management screens provide a per-record **Edit** action: the generic module screens load the selected row into the form and save with `PATCH`, while Workers, Sites, Roles & access, Attendance, and Daily reports use inline edit forms and save with `PUT`/`PATCH`. The daily workflow pages are:
+The management screens provide per-record **Edit** and **Delete** actions: the generic module screens load the selected row into the form and save with `PATCH`, while Workers, Sites, Roles & access, Attendance, and Daily reports use inline edit forms and save with `PUT`/`PATCH`. Every delete asks for confirmation first. The daily workflow pages are:
 
 - `/daily-plans` — the project manager creates a plan and assigns tasks, deadlines, supervisors/assignees and required resources.
 - `/attendance` — the supervisor records present, absent and late workers.

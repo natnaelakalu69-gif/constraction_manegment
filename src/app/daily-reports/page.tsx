@@ -134,6 +134,28 @@ export default function DailyReportsPage() {
     setError(null); setSuccess(null);
   }
 
+  async function removeReport(report: Report) {
+    if (!window.confirm(`Delete daily site report #${report.id}? Its follow-up actions will be kept but unlinked.`)) return;
+    setError(null); setSuccess(null);
+    try {
+      await fetchJson(`/api/modules/daily-site-reports/${report.id}`, { method: "DELETE" });
+      if (editingReportId === report.id) setEditingReportId(null);
+      setSuccess(`Report #${report.id} deleted.`);
+      await load();
+    } catch (err) { setError(err instanceof Error ? err.message : "Report could not be deleted."); }
+  }
+
+  async function removeFollowUp(followUp: FollowUp) {
+    if (!window.confirm(`Delete follow-up action #${followUp.id}? This cannot be undone.`)) return;
+    setError(null); setSuccess(null);
+    try {
+      await fetchJson(`/api/modules/daily-follow-ups/${followUp.id}`, { method: "DELETE" });
+      if (editingFollowUp?.id === followUp.id) setEditingFollowUp(null);
+      setSuccess(`Follow-up #${followUp.id} deleted.`);
+      await load();
+    } catch (err) { setError(err instanceof Error ? err.message : "Follow-up could not be deleted."); }
+  }
+
   async function addFollowUp(reportId: number) {
     const f = followForm[reportId] ?? { issue: "", action: "", assignedTo: "", dueDate: "" };
     if (!f.issue.trim() || !f.action.trim()) { setError("Follow-up issue and action are required."); return; }
@@ -204,9 +226,10 @@ export default function DailyReportsPage() {
               <div key={report.id} className={editingReportId === report.id ? "editing-row" : undefined} style={{ border: "1px solid var(--border, #e5e7eb)", borderRadius: 12, padding: 16 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
                   <div><strong>#{report.id}</strong> — {report.reportDate} · {report.supervisorName} · {projectName(report.projectId)} · <strong>{report.progressPercent}%</strong></div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <div className="row-actions">
                     <span className="status-pill">{report.status}</span>
                     <button className="button button-secondary row-action" type="button" onClick={() => startReportEdit(report)}>Edit</button>
+                    <button className="button button-danger row-action" type="button" onClick={() => void removeReport(report)}>Delete</button>
                   </div>
                 </div>
                 <p style={{ margin: "8px 0" }}><strong>Completed work:</strong> {report.completedWork}</p>
@@ -231,8 +254,11 @@ export default function DailyReportsPage() {
                   {related.map((f) => (
                     <div key={f.id} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 6 }}>
                       <span>#{f.id} [{f.status}] {f.issue} → {f.action} {f.assignedTo ? `(${f.assignedTo})` : ""} {f.dueDate ? `due ${f.dueDate}` : ""}</span>
-                      <button className="button button-secondary row-action" type="button" onClick={() => startFollowUpEdit(f)}>Edit</button>
-                      {f.status !== "done" && <button className="button button-secondary" type="button" onClick={() => void setFollowUpStatus(f.id, "done")}>Mark done</button>}
+                      <div className="row-actions">
+                        <button className="button button-secondary row-action" type="button" onClick={() => startFollowUpEdit(f)}>Edit</button>
+                        <button className="button button-danger row-action" type="button" onClick={() => void removeFollowUp(f)}>Delete</button>
+                        {f.status !== "done" && <button className="button button-secondary row-action" type="button" onClick={() => void setFollowUpStatus(f.id, "done")}>Mark done</button>}
+                      </div>
                     </div>
                   ))}
                   <div className="management-form" style={{ marginTop: 8 }}>
@@ -265,8 +291,11 @@ export default function DailyReportsPage() {
                   <td>{f.reportId ?? "—"}</td><td>{f.issue}</td><td>{f.action}</td>
                   <td>{f.assignedTo ?? "—"}</td><td>{f.dueDate ?? "—"}</td><td>{f.status}</td>
                   <td>
-                    <button className="button button-secondary row-action" type="button" onClick={() => startFollowUpEdit(f)}>Edit</button>
-                    {f.status !== "done" && <button className="button button-secondary row-action" type="button" onClick={() => void setFollowUpStatus(f.id, "done")}>Done</button>}
+                    <div className="row-actions">
+                      <button className="button button-secondary row-action" type="button" onClick={() => startFollowUpEdit(f)}>Edit</button>
+                      <button className="button button-danger row-action" type="button" onClick={() => void removeFollowUp(f)}>Delete</button>
+                      {f.status !== "done" && <button className="button button-secondary row-action" type="button" onClick={() => void setFollowUpStatus(f.id, "done")}>Done</button>}
+                    </div>
                   </td>
                 </tr>
               ))}

@@ -123,6 +123,27 @@ export default function RoleManager() {
     setNotice(null);
   }
 
+  async function removeRole(role: Role) {
+    if (!window.confirm(`Delete role "${role.name}"? This cannot be undone.`)) return;
+    if (await run(() => fetchJson(`/api/roles/${role.id}`, { method: "DELETE" }), "Role deleted.") && editingRoleId === role.id) {
+      setEditingRoleId(null);
+    }
+  }
+
+  async function removePermission(permission: Permission) {
+    if (!window.confirm(`Delete permission "${permission.code}"? It will be removed from all roles.`)) return;
+    if (await run(() => fetchJson(`/api/roles/permissions/${permission.id}`, { method: "DELETE" }), "Permission deleted.") && editingPermissionId === permission.id) {
+      setEditingPermissionId(null);
+    }
+  }
+
+  async function removeUser(user: AppUser) {
+    if (!window.confirm(`Delete user "${user.fullName}"? Their role assignments will be removed.`)) return;
+    if (await run(() => fetchJson(`/api/roles/users/${user.id}`, { method: "DELETE" }), "User deleted.") && editingUserId === user.id) {
+      setEditingUserId(null);
+    }
+  }
+
   const editingSystemRole = editingRoleId !== null && snapshot?.roles.find((role) => role.id === editingRoleId)?.isSystem === true;
 
   const groupedPermissions = useMemo(() => {
@@ -230,10 +251,10 @@ export default function RoleManager() {
                   </button>
                   {!role.isSystem && (
                     <button
-                      className="button button-secondary row-action"
+                      className="button button-danger row-action"
                       type="button"
                       disabled={busy}
-                      onClick={() => void run(() => fetchJson(`/api/roles/${role.id}`, { method: "DELETE" }), "Role deleted.")}
+                      onClick={() => void removeRole(role)}
                     >
                       Delete
                     </button>
@@ -310,9 +331,14 @@ export default function RoleManager() {
                   <td>{permission.module}</td>
                   <td>{permission.description || "—"}</td>
                   <td>
-                    <button className="button button-secondary row-action" type="button" onClick={() => startPermissionEdit(permission)} disabled={busy}>
-                      Edit
-                    </button>
+                    <div className="row-actions">
+                      <button className="button button-secondary row-action" type="button" onClick={() => startPermissionEdit(permission)} disabled={busy}>
+                        Edit
+                      </button>
+                      <button className="button button-danger row-action" type="button" onClick={() => void removePermission(permission)} disabled={busy}>
+                        Delete
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -416,9 +442,14 @@ export default function RoleManager() {
                     </div>
                   </td>
                   <td>
-                    <button className="button button-secondary row-action" type="button" onClick={() => startUserEdit(user)} disabled={busy}>
-                      Edit
-                    </button>
+                    <div className="row-actions">
+                      <button className="button button-secondary row-action" type="button" onClick={() => startUserEdit(user)} disabled={busy}>
+                        Edit
+                      </button>
+                      <button className="button button-danger row-action" type="button" onClick={() => void removeUser(user)} disabled={busy}>
+                        Delete
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

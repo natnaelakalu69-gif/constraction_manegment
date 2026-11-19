@@ -81,6 +81,27 @@ function ModuleSectionCard({ section }: { section: ModuleSection }) {
     setSuccess(null);
   }
 
+  async function remove(row: Row) {
+    const id = Number(row.id);
+    if (!window.confirm("Delete this record? This cannot be undone.")) return;
+    setSaving(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      await fetchJson(`${section.endpoint}/${id}`, { method: "DELETE" });
+      if (editingId === id) {
+        setEditingId(null);
+        setForm(emptyForm());
+      }
+      setSuccess("Record deleted.");
+      setRows(await fetchRows());
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "The record could not be deleted.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   useEffect(() => {
     let cancelled = false;
     void fetchRows()
@@ -199,9 +220,14 @@ function ModuleSectionCard({ section }: { section: ModuleSection }) {
               <tr key={String(row.id)} className={editingId === Number(row.id) ? "editing-row" : undefined}>
                 {section.columns.map((column) => <td key={column.key}>{display(row[column.key])}</td>)}
                 <td>
-                  <button className="button button-secondary row-action" type="button" onClick={() => startEdit(row)} disabled={saving}>
-                    Edit
-                  </button>
+                  <div className="row-actions">
+                    <button className="button button-secondary row-action" type="button" onClick={() => startEdit(row)} disabled={saving}>
+                      Edit
+                    </button>
+                    <button className="button button-danger row-action" type="button" onClick={() => void remove(row)} disabled={saving}>
+                      Delete
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}

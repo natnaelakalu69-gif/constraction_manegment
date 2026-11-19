@@ -80,6 +80,26 @@ export default function SitesPage() {
     setSuccess(null);
   }
 
+  async function removeSite(site: Site) {
+    if (!window.confirm(`Delete site "${site.siteName}"? This cannot be undone.`)) return;
+    setIsSaving(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      await fetchJson(`/api/sites/${site.id}`, { method: "DELETE" });
+      if (editingId === site.id) {
+        setEditingId(null);
+        setForm(emptyForm);
+      }
+      setSuccess("Site deleted.");
+      await loadSites();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Site could not be deleted.");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
   async function addSite(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const editing = editingId !== null;
@@ -199,9 +219,14 @@ export default function SitesPage() {
                   <td>{site.siteCode}</td><td>{site.siteName}</td><td>{site.location}</td>
                   <td>{site.managerName || "—"}</td><td>{site.status}</td>
                   <td>
-                    <button className="button button-secondary row-action" type="button" onClick={() => startEdit(site)} disabled={isSaving}>
-                      Edit
-                    </button>
+                    <div className="row-actions">
+                      <button className="button button-secondary row-action" type="button" onClick={() => startEdit(site)} disabled={isSaving}>
+                        Edit
+                      </button>
+                      <button className="button button-danger row-action" type="button" onClick={() => void removeSite(site)} disabled={isSaving}>
+                        Delete
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
