@@ -2,6 +2,27 @@ import ModuleManager, { type ModuleSection } from "@/components/module-manager";
 
 const sections: ModuleSection[] = [
   {
+    key: "safety-inspections",
+    title: "Safety inspections",
+    description: "Record hazards, incidents observed, and corrective actions from site inspections.",
+    endpoint: "/api/modules/safety-inspections",
+    fields: [
+      { name: "inspectionDate", label: "Inspection date", type: "date", required: true },
+      { name: "inspectorName", label: "Inspector", required: true },
+      { name: "projectId", label: "Project", type: "select", optionsFrom: "/api/modules/projects", optionLabel: "name" },
+      { name: "hazards", label: "Hazards identified" },
+      { name: "incidentsObserved", label: "Incidents observed" },
+      { name: "correctiveActions", label: "Corrective actions" },
+      { name: "status", label: "Status", type: "select", options: ["draft", "submitted", "approved", "rejected", "cancelled"] },
+      { name: "notes", label: "Notes" },
+    ],
+    columns: [
+      { key: "inspectionDate", label: "Date" }, { key: "inspectorName", label: "Inspector" },
+      { key: "hazards", label: "Hazards" }, { key: "incidentsObserved", label: "Incidents observed" },
+      { key: "correctiveActions", label: "Corrective actions" }, { key: "status", label: "Status" },
+    ],
+  },
+  {
     key: "safety-incidents",
     title: "Safety incidents",
     description: "Record and review incidents with severity and status.",
@@ -62,7 +83,7 @@ export default function SafetyPage() {
   return (
     <ModuleManager
       title="Safety & quality"
-      subtitle="Manage incidents, inspections and defects across active projects."
+      subtitle="Record safety inspections, hazards, incidents, corrective actions and quality checks."
       sections={sections}
     />
   );

@@ -15,6 +15,13 @@
       "when": 1794994018130,
       "tag": "0001_silent_shiva",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1795075718718,
+      "tag": "0002_daily_operations",
+      "breakpoints": true
     }
   ]
 }

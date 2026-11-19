@@ -154,6 +154,28 @@ export const documents = pgTable("documents", {
 export const workflowTasks = pgTable("workflow_tasks", {
   id: serial("id").primaryKey(), companyId: integer("company_id").notNull().references(() => companies.id), projectId: integer("project_id").references(() => projects.id), title: varchar("title", { length: 200 }).notNull(), description: text("description"), assignedTo: integer("assigned_to").references(() => appUsers.id), createdBy: integer("created_by").references(() => appUsers.id), priority: varchar("priority", { length: 20 }).notNull().default("normal"), status: varchar("status", { length: 30 }).notNull().default("open"), dueAt: timestamp("due_at", { withTimezone: true }), ...auditColumns,
 }, (t) => ({ companyStatusIdx: index("workflow_tasks_company_status_idx").on(t.companyId, t.status), assigneeIdx: index("workflow_tasks_assignee_idx").on(t.assignedTo) }));
+
+export const dailyPlans = pgTable("daily_plans", {
+  id: serial("id").primaryKey(), companyId: integer("company_id").notNull().references(() => companies.id), projectId: integer("project_id").references(() => projects.id), siteId: integer("site_id").references(() => sites.id),
+  planDate: date("plan_date").notNull(), supervisorName: varchar("supervisor_name", { length: 180 }).notNull(), requiredResources: text("required_resources"), notes: text("notes"), status: requestState("status").notNull().default("draft"), ...auditColumns,
+}, (t) => ({ companyDateIdx: index("daily_plans_company_date_idx").on(t.companyId, t.planDate), projectIdx: index("daily_plans_project_idx").on(t.projectId) }));
+export const dailyPlanTasks = pgTable("daily_plan_tasks", {
+  id: serial("id").primaryKey(), companyId: integer("company_id").notNull().references(() => companies.id), planId: integer("plan_id").notNull().references(() => dailyPlans.id, { onDelete: "cascade" }),
+  task: text("task").notNull(), deadline: date("deadline"), assignee: varchar("assignee", { length: 180 }), requiredResources: text("required_resources"), status: varchar("status", { length: 30 }).notNull().default("planned"), ...auditColumns,
+}, (t) => ({ planIdx: index("daily_plan_tasks_plan_idx").on(t.planId) }));
+export const dailySiteReports = pgTable("daily_site_reports", {
+  id: serial("id").primaryKey(), companyId: integer("company_id").notNull().references(() => companies.id), projectId: integer("project_id").references(() => projects.id), siteId: integer("site_id").references(() => sites.id), planId: integer("plan_id").references(() => dailyPlans.id),
+  reportDate: date("report_date").notNull(), supervisorName: varchar("supervisor_name", { length: 180 }).notNull(), completedWork: text("completed_work").notNull(), progressPercent: numeric("progress_percent", { precision: 5, scale: 2 }).notNull().default("0"), photos: text("photos"), challenges: text("challenges"), delays: text("delays"), status: requestState("status").notNull().default("submitted"), reviewNotes: text("review_notes"), reviewedBy: varchar("reviewed_by", { length: 180 }), reviewedAt: timestamp("reviewed_at", { withTimezone: true }), ...auditColumns,
+}, (t) => ({ companyDateIdx: index("daily_site_reports_company_date_idx").on(t.companyId, t.reportDate), planIdx: index("daily_site_reports_plan_idx").on(t.planId) }));
+export const dailyFollowUps = pgTable("daily_follow_ups", {
+  id: serial("id").primaryKey(), companyId: integer("company_id").notNull().references(() => companies.id), reportId: integer("report_id").references(() => dailySiteReports.id, { onDelete: "set null" }), projectId: integer("project_id").references(() => projects.id), siteId: integer("site_id").references(() => sites.id),
+  issue: text("issue").notNull(), action: text("action").notNull(), assignedTo: varchar("assigned_to", { length: 180 }), dueDate: date("due_date"), status: varchar("status", { length: 30 }).notNull().default("open"), notes: text("notes"), ...auditColumns,
+}, (t) => ({ reportIdx: index("daily_follow_ups_report_idx").on(t.reportId), companyStatusIdx: index("daily_follow_ups_company_status_idx").on(t.companyId, t.status) }));
+export const safetyInspections = pgTable("safety_inspections", {
+  id: serial("id").primaryKey(), companyId: integer("company_id").notNull().references(() => companies.id), projectId: integer("project_id").references(() => projects.id), siteId: integer("site_id").references(() => sites.id),
+  inspectionDate: date("inspection_date").notNull(), inspectorName: varchar("inspector_name", { length: 180 }).notNull(), hazards: text("hazards"), incidentsObserved: text("incidents_observed"), correctiveActions: text("corrective_actions"), status: requestState("status").notNull().default("submitted"), notes: text("notes"), ...auditColumns,
+}, (t) => ({ companyDateIdx: index("safety_inspections_company_date_idx").on(t.companyId, t.inspectionDate), siteIdx: index("safety_inspections_site_idx").on(t.siteId) }));
+
 export const notifications = pgTable("notifications", {
   id: serial("id").primaryKey(), companyId: integer("company_id").notNull().references(() => companies.id), userId: integer("user_id").notNull().references(() => appUsers.id, { onDelete: "cascade" }), type: varchar("type", { length: 60 }).notNull(), title: varchar("title", { length: 180 }).notNull(), body: text("body"), readAt: timestamp("read_at", { withTimezone: true }), createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 }, (t) => ({ inboxIdx: index("notifications_inbox_idx").on(t.userId, t.readAt, t.createdAt) }));
@@ -166,5 +188,5 @@ export const enterpriseSchema = {
   projects, projectMembers, sites, siteSections, workers, workerAssignments, shifts, attendanceRecords, dayLaborWages,
   workPackages, progressRecords, materialCategories, materials, suppliers, purchaseRequests, purchaseOrders, inventoryTransactions,
   equipment, equipmentUsage, equipmentMaintenance, contractors, contracts, contractorPayments, budgets, projectCosts, paymentRequests,
-  safetyIncidents, qualityInspections, qualityDefects, documents, workflowTasks, notifications, auditLogs,
+  safetyIncidents, qualityInspections, qualityDefects, documents, workflowTasks, dailyPlans, dailyPlanTasks, dailySiteReports, dailyFollowUps, safetyInspections, notifications, auditLogs,
 };

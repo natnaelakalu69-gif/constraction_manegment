@@ -6,22 +6,28 @@ import type { ReactNode } from "react";
 
 const navigation = [
   { href: "/", label: "Overview", icon: "O" },
+  { href: "/daily-plans", label: "Daily plans", icon: "D" },
   { href: "/projects", label: "Projects", icon: "P" },
   { href: "/sites", label: "Sites", icon: "S" },
   { href: "/workers", label: "Workforce", icon: "W" },
   { href: "/attendance", label: "Attendance", icon: "A" },
+  { href: "/daily-reports", label: "Daily reports", icon: "R" },
   { href: "/materials", label: "Materials", icon: "M" },
   { href: "/safety", label: "Safety & quality", icon: "Q" },
+  { href: "/daily-summary", label: "Daily summary", icon: "S" },
 ];
 
 const pageTitles: Record<string, string> = {
   "/": "Overview",
+  "/daily-plans": "Daily plans",
   "/projects": "Projects",
   "/sites": "Sites",
   "/workers": "Workforce",
   "/attendance": "Attendance",
+  "/daily-reports": "Daily reports",
   "/materials": "Materials",
   "/safety": "Safety & quality",
+  "/daily-summary": "Daily summary",
 };
 
 export default function AppShell({ children }: { children: ReactNode }) {
@@ -71,7 +77,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
             <span className="status-orb" />
             <span>Core operations</span>
           </div>
-          <p>Projects, sites, workforce, attendance, materials and safety are available.</p>
+          <p>Daily plans, attendance, reports, materials, safety and daily summaries are available.</p>
           <Link className="sidebar-cta" href="/attendance">
             <span aria-hidden="true">+</span>
             Record attendance

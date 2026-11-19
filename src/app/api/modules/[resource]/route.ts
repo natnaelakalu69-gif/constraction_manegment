@@ -2,9 +2,9 @@ import { NextResponse } from "next/server";
 import { desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import {
-  budgets, equipment, equipmentUsage, inventoryTransactions, materials,
-  progressRecords, projectCosts, projects, qualityDefects, qualityInspections,
-  safetyIncidents, workPackages,
+  budgets, dailyFollowUps, dailyPlanTasks, dailyPlans, dailySiteReports, equipment, equipmentUsage,
+  inventoryTransactions, materials, progressRecords, projectCosts, projects, qualityDefects,
+  qualityInspections, safetyIncidents, safetyInspections, workPackages,
 } from "@/db/schema/enterprise";
 import { isUniqueConstraintViolation } from "@/lib/postgres-errors";
 import { getWorkspaceCompanyId } from "@/lib/workspace";
@@ -223,6 +223,79 @@ const resources: Record<string, Resource> = {
       severity: text(b, "severity"),
       status: oneOf(b, "status", APPROVAL_STATES, "submitted"),
       dueDate: date(b, "dueDate"),
+    }).returning().then(([row]) => row),
+  },
+  "daily-plans": {
+    list: (companyId) => db.select().from(dailyPlans).where(eq(dailyPlans.companyId, companyId)).orderBy(desc(dailyPlans.planDate), desc(dailyPlans.id)),
+    create: (b, companyId) => db.insert(dailyPlans).values({
+      companyId,
+      projectId: int(b, "projectId", false),
+      siteId: int(b, "siteId", false),
+      planDate: date(b, "planDate", true)!,
+      supervisorName: requiredText(b, "supervisorName"),
+      requiredResources: text(b, "requiredResources"),
+      notes: text(b, "notes"),
+      status: oneOf(b, "status", APPROVAL_STATES, "draft"),
+    }).returning().then(([row]) => row),
+  },
+  "daily-plan-tasks": {
+    list: (companyId) => db.select().from(dailyPlanTasks).where(eq(dailyPlanTasks.companyId, companyId)).orderBy(desc(dailyPlanTasks.id)),
+    create: (b, companyId) => db.insert(dailyPlanTasks).values({
+      companyId,
+      planId: int(b, "planId")!,
+      task: requiredText(b, "task"),
+      deadline: date(b, "deadline"),
+      assignee: text(b, "assignee"),
+      requiredResources: text(b, "requiredResources"),
+      status: text(b, "status") ?? "planned",
+    }).returning().then(([row]) => row),
+  },
+  "daily-site-reports": {
+    list: (companyId) => db.select().from(dailySiteReports).where(eq(dailySiteReports.companyId, companyId)).orderBy(desc(dailySiteReports.reportDate), desc(dailySiteReports.id)),
+    create: (b, companyId) => db.insert(dailySiteReports).values({
+      companyId,
+      projectId: int(b, "projectId", false),
+      siteId: int(b, "siteId", false),
+      planId: int(b, "planId", false),
+      reportDate: date(b, "reportDate", true)!,
+      supervisorName: requiredText(b, "supervisorName"),
+      completedWork: requiredText(b, "completedWork"),
+      progressPercent: requiredNumber(b, "progressPercent"),
+      photos: text(b, "photos"),
+      challenges: text(b, "challenges"),
+      delays: text(b, "delays"),
+      status: oneOf(b, "status", APPROVAL_STATES, "submitted"),
+      reviewNotes: text(b, "reviewNotes"),
+    }).returning().then(([row]) => row),
+  },
+  "daily-follow-ups": {
+    list: (companyId) => db.select().from(dailyFollowUps).where(eq(dailyFollowUps.companyId, companyId)).orderBy(desc(dailyFollowUps.id)),
+    create: (b, companyId) => db.insert(dailyFollowUps).values({
+      companyId,
+      reportId: int(b, "reportId", false),
+      projectId: int(b, "projectId", false),
+      siteId: int(b, "siteId", false),
+      issue: requiredText(b, "issue"),
+      action: requiredText(b, "action"),
+      assignedTo: text(b, "assignedTo"),
+      dueDate: date(b, "dueDate"),
+      status: oneOf(b, "status", ["open", "in_progress", "done", "cancelled"] as const, "open"),
+      notes: text(b, "notes"),
+    }).returning().then(([row]) => row),
+  },
+  "safety-inspections": {
+    list: (companyId) => db.select().from(safetyInspections).where(eq(safetyInspections.companyId, companyId)).orderBy(desc(safetyInspections.inspectionDate), desc(safetyInspections.id)),
+    create: (b, companyId) => db.insert(safetyInspections).values({
+      companyId,
+      projectId: int(b, "projectId", false),
+      siteId: int(b, "siteId", false),
+      inspectionDate: date(b, "inspectionDate", true)!,
+      inspectorName: requiredText(b, "inspectorName"),
+      hazards: text(b, "hazards"),
+      incidentsObserved: text(b, "incidentsObserved"),
+      correctiveActions: text(b, "correctiveActions"),
+      status: oneOf(b, "status", APPROVAL_STATES, "submitted"),
+      notes: text(b, "notes"),
     }).returning().then(([row]) => row),
   },
 };
