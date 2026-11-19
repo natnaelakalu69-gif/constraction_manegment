@@ -11,6 +11,8 @@ type IconName =
   | "attendance"
   | "inventory"
   | "safety"
+  | "plan"
+  | "report"
   | "refresh"
   | "arrow";
 
@@ -76,6 +78,18 @@ const iconShapes: Record<IconName, React.ReactNode> = {
     <>
       <path d="M12 3 20 6v5.3c0 4.6-3.1 8.1-8 9.7-4.9-1.6-8-5.1-8-9.7V6l8-3Z" />
       <path d="m9 12 2 2 4-4" />
+    </>
+  ),
+  plan: (
+    <>
+      <path d="M6 3.5h9l3 3v14H6z" />
+      <path d="M14.5 3.5v3.5H18M9 11h6M9 14.5h6M9 18h4" />
+    </>
+  ),
+  report: (
+    <>
+      <path d="M7 3.5h7l4 4v13H7z" />
+      <path d="M14 3.5v4h4M10 12h5M10 15.5h5M10 19h3" />
     </>
   ),
   refresh: (
@@ -397,6 +411,26 @@ export default function OperationsDashboard() {
               <span className="roadmap-badge">AVAILABLE</span>
             </div>
             <div className="module-grid">
+              <Link className="module-card" href="/daily-plans">
+                <span className="module-icon module-indigo"><Icon name="plan" /></span>
+                <div><strong>Daily plans</strong><p>Tasks, deadlines, supervisors and required resources.</p></div>
+                <span className="module-status">Open</span>
+              </Link>
+              <Link className="module-card" href="/daily-reports">
+                <span className="module-icon module-orange"><Icon name="attendance" /></span>
+                <div><strong>Daily site reports</strong><p>Progress, photos, challenges, reviews and follow-ups.</p></div>
+                <span className="module-status">Open</span>
+              </Link>
+              <Link className="module-card" href="/daily-summary">
+                <span className="module-icon module-teal"><Icon name="report" /></span>
+                <div><strong>Daily summary</strong><p>Attendance, progress, materials, safety and open issues.</p></div>
+                <span className="module-status">Open</span>
+              </Link>
+              <Link className="module-card" href="/roles">
+                <span className="module-icon module-indigo"><Icon name="safety" /></span>
+                <div><strong>Roles &amp; access</strong><p>Roles, permissions and user assignments.</p></div>
+                <span className="module-status">Open</span>
+              </Link>
               <Link className="module-card" href="/projects">
                 <span className="module-icon module-indigo"><Icon name="projects" /></span>
                 <div><strong>Project controls</strong><p>Budgets, work packages, and progress tracking.</p></div>
@@ -417,7 +451,7 @@ export default function OperationsDashboard() {
 
           <footer className="dashboard-footer">
             <span>Construction Operations</span>
-            <span>Live data is limited to the currently implemented sites and attendance modules.</span>
+            <span>Live data covers sites, attendance, daily plans, site reports, materials and safety.</span>
           </footer>
     </main>
   );

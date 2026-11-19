@@ -41,11 +41,25 @@ Never commit `.env` or secrets. Production configuration will be completed along
 - `GET/POST /api/sites`, `GET/PUT/DELETE /api/sites/:id`
 - `GET/POST /api/attendance?date=YYYY-MM-DD`
 - `GET /api/reports/daily?date=YYYY-MM-DD`
-- `GET/POST /api/modules/:resource` for `projects`, `work-packages`, `progress-records`, `budgets`, `project-costs`, `materials`, `inventory-transactions`, `equipment`, `equipment-usage`, `safety-incidents`, `quality-inspections`, and `quality-defects`
+- `GET /api/reports/daily-operations?date=YYYY-MM-DD` — combined attendance, plans, progress, materials, safety and outstanding issues
+- `GET/POST /api/modules/:resource` for `projects`, `work-packages`, `progress-records`, `budgets`, `project-costs`, `materials`, `inventory-transactions`, `equipment`, `equipment-usage`, `safety-incidents`, `quality-inspections`, `quality-defects`, `daily-plans`, `daily-plan-tasks`, `daily-site-reports`, `daily-follow-ups`, and `safety-inspections`
+- `PATCH /api/modules/:resource/:id` for `daily-plans`, `daily-site-reports` (manager review/approval), `daily-follow-ups`, and `safety-inspections`
+- `GET/POST /api/roles` — role snapshot and role creation; `PATCH/DELETE /api/roles/:id` for custom roles
+- `POST /api/roles/permissions`, `POST/PATCH /api/roles/users[/:id]`, and `POST/DELETE /api/roles/grants` for permissions, users and grants
 
 These legacy endpoints are not yet the planned `/api/v1` API and do not satisfy the full security, validation, pagination, or RBAC requirements. They will be migrated in subsequent phases.
 
-The `/projects`, `/materials`, and `/safety` pages provide basic create-and-list screens for the corresponding enterprise tables. All enterprise records are scoped to the first company in the database; a default company is created automatically on first use because company switching is not implemented yet.
+The `/projects`, `/materials`, and `/safety` pages provide basic create-and-list screens for the corresponding enterprise tables. The daily workflow pages are:
+
+- `/daily-plans` — the project manager creates a plan and assigns tasks, deadlines, supervisors/assignees and required resources.
+- `/attendance` — the supervisor records present, absent and late workers.
+- `/daily-reports` — the supervisor submits completed work, progress %, photos and challenges; the manager approves reports, records delays and assigns follow-up actions.
+- `/materials` — the materials manager records receipts/issues and sees received, issued and remaining stock.
+- `/safety` — the safety officer records hazards, incidents observed and corrective actions.
+- `/daily-summary` — the generated daily report combining attendance, progress, materials, safety and outstanding issues.
+- `/roles` — create roles and permissions, grant permissions to roles, create app users, and assign roles to users. Standard roles (Admin, Project Manager, Site Supervisor, Materials Manager, Safety Officer) and their permission grants are seeded on first use.
+
+All enterprise records are scoped to the first company in the database; a default company is created automatically on first use because company switching is not implemented yet.
 
 ## Planned development commands
 
@@ -53,7 +67,7 @@ Available scripts are listed in `package.json`. Type checking and linting: `npm 
 
 ## Roles and AI
 
-The target is configurable permission-based access control with company-scoped authorization. AI is planned to call authorized application services only; it will not execute model-generated SQL. Sensitive writes require permission and confirmation. Neither the full role catalog nor AI command execution is implemented yet.
+The `/roles` page provides a company-scoped role catalog: roles, permissions, permission grants and user-role assignments can be managed there. These definitions are **not yet enforced** by the existing endpoints or UI, and the login flow still uses the legacy `users` table. AI is planned to call authorized application services only; it will not execute model-generated SQL. Sensitive writes require permission and confirmation. Permission enforcement, a full production auth flow, and AI command execution remain planned work.
 
 ## Security and operations
 

@@ -43,7 +43,17 @@ export default function DailyReportsPage() {
   }, []);
 
   useEffect(() => {
-    void load().catch((e: unknown) => setError(e instanceof Error ? e.message : "Could not load reports.")).finally(() => setLoading(false));
+    let active = true;
+    void Promise.resolve()
+      .then(() => load())
+      .catch((e: unknown) => {
+        if (!active) return;
+        setError(e instanceof Error ? e.message : "Could not load reports.");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => { active = false; };
   }, [load]);
 
   async function submitReport(e: FormEvent) {

@@ -96,7 +96,9 @@ function StockSummary() {
     }
   }
 
-  useEffect(() => { void load(); }, []);
+  useEffect(() => {
+    void Promise.resolve().then(() => load());
+  }, []);
 
   const rows = useMemo(() => materials.map((m) => {
     let received = 0, issued = 0, adjusted = 0;

@@ -21,14 +21,25 @@ export default function DailySummaryPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  async function load(d: string) {
+  async function load(d: string, isCurrent: () => boolean) {
     setLoading(true); setError(null);
-    try { setReport(await fetchJson<Report>(`/api/reports/daily-operations?date=${encodeURIComponent(d)}`)); }
-    catch (e) { setError(e instanceof Error ? e.message : "Report could not be loaded."); setReport(null); }
-    finally { setLoading(false); }
+    try {
+      const result = await fetchJson<Report>(`/api/reports/daily-operations?date=${encodeURIComponent(d)}`);
+      if (isCurrent()) setReport(result);
+    } catch (e) {
+      if (!isCurrent()) return;
+      setError(e instanceof Error ? e.message : "Report could not be loaded.");
+      setReport(null);
+    } finally {
+      if (isCurrent()) setLoading(false);
+    }
   }
 
-  useEffect(() => { void load(date); }, [date]);
+  useEffect(() => {
+    let active = true;
+    void Promise.resolve().then(() => load(date, () => active));
+    return () => { active = false; };
+  }, [date]);
 
   return (
     <main className="management-main">
