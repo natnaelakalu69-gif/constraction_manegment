@@ -426,6 +426,11 @@ export default function OperationsDashboard() {
                 <div><strong>Operations reports</strong><p>Daily detail plus weekly, monthly and yearly summaries.</p></div>
                 <span className="module-status">Open</span>
               </Link>
+              <Link className="module-card" href="/executive-summary">
+                <span className="module-icon module-teal"><Icon name="report" /></span>
+                <div><strong>Executive summary</strong><p>Portfolio KPIs, period comparisons and charts.</p></div>
+                <span className="module-status">Open</span>
+              </Link>
               <Link className="module-card" href="/roles">
                 <span className="module-icon module-indigo"><Icon name="safety" /></span>
                 <div><strong>Roles &amp; access</strong><p>Roles, permissions and user assignments.</p></div>

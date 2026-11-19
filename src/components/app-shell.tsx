@@ -15,6 +15,7 @@ const navigation = [
   { href: "/materials", label: "Materials", icon: "M" },
   { href: "/safety", label: "Safety & quality", icon: "Q" },
   { href: "/daily-summary", label: "Reports", icon: "S" },
+  { href: "/executive-summary", label: "Executive summary", icon: "E" },
   { href: "/roles", label: "Roles & access", icon: "L" },
 ];
 
@@ -29,6 +30,7 @@ const pageTitles: Record<string, string> = {
   "/materials": "Materials",
   "/safety": "Safety & quality",
   "/daily-summary": "Operations reports",
+  "/executive-summary": "Executive summary",
   "/roles": "Roles & access",
 };
 

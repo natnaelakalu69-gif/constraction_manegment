@@ -416,6 +416,97 @@ a.nav-link:hover {
   box-shadow: 0 1px 4px #24364a12;
 }
 
+.print-report-heading {
+  display: none;
+}
+
+.report-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 10px 14px;
+  border: 1px solid #e9edf1;
+  border-radius: 9px;
+  background: #fff;
+  color: #52637a;
+  font-size: 12px;
+}
+
+.export-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.summary-chart-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.bar-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.bar-row {
+  display: grid;
+  grid-template-columns: minmax(90px, 150px) 1fr 44px;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+}
+
+.bar-label {
+  overflow: hidden;
+  color: #52637a;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bar-track {
+  display: block;
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #eef1f6;
+}
+
+.bar-fill,
+.mini-bar {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+}
+
+.bar-blue, .mini-blue { background: #5d79dc; }
+.bar-teal, .mini-teal { background: #28a4a0; }
+.bar-orange, .mini-orange { background: #df9437; }
+.bar-red, .mini-red { background: #d66060; }
+
+.bar-value {
+  color: #19293a;
+  font-weight: 600;
+  text-align: right;
+}
+
+.mini-bar-cell {
+  display: grid;
+  grid-template-columns: minmax(40px, 90px) 32px;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.mini-bar-cell .mini-bar {
+  height: 7px;
+  min-width: 2px;
+}
+
 .management-card {
   min-width: 0;
   margin-bottom: 16px;
@@ -1606,5 +1697,91 @@ a.nav-link:hover {
 @media (max-width: 760px) {
   .role-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 12mm;
+  }
+
+  body {
+    background: #fff !important;
+  }
+
+  .sidebar,
+  .topbar,
+  .period-tabs,
+  .print-hide,
+  .management-heading,
+  .management-message,
+  .button,
+  .row-actions {
+    display: none !important;
+  }
+
+  .app-shell,
+  .content-area {
+    display: block !important;
+    width: 100% !important;
+    max-width: none !important;
+    min-height: 0 !important;
+  }
+
+  .management-main {
+    width: 100% !important;
+    max-width: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  .print-report-heading {
+    display: block !important;
+    margin-bottom: 16px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #19293a;
+  }
+
+  .print-report-heading h2 {
+    margin: 0 0 4px;
+    color: #19293a;
+    font-size: 20px;
+  }
+
+  .print-report-heading p {
+    margin: 0;
+    color: #52637a;
+    font-size: 11px;
+  }
+
+  .management-card,
+  .metric-card {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    box-shadow: none !important;
+    border: 1px solid #d9dee6 !important;
+  }
+
+  .management-table-wrap {
+    overflow: visible !important;
+  }
+
+  .management-table thead {
+    display: table-header-group;
+  }
+
+  .management-table tr {
+    break-inside: avoid;
+  }
+
+  .summary-chart-grid {
+    gap: 8px;
+  }
+
+  .bar-fill,
+  .mini-bar {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
   }
 }

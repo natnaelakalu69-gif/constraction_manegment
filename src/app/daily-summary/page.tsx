@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { fetchJson } from "@/lib/client-api";
-
-type Period = "daily" | "weekly" | "monthly" | "yearly";
+import { ReportExportButtons } from "@/components/report-export-buttons";
+import { statusRows, type CsvRow } from "@/lib/report-export";
+import type { Period, PeriodReport } from "@/lib/report-types";
 
 const PERIODS: Array<{ key: Period; label: string }> = [
   { key: "daily", label: "Daily" },
@@ -22,48 +23,97 @@ type DailyReport = {
   outstandingIssues: { followUps: Array<Record<string, unknown>>; pendingReports: Array<Record<string, unknown>>; openDefects: Array<Record<string, unknown>> };
 };
 
-type PeriodReport = {
-  period: Period;
-  anchorDate: string;
-  startDate: string;
-  endDate: string;
-  attendance: {
-    total: number;
-    byStatus: Record<string, number>;
-    byDate: Array<Record<string, number> & { day: string }>;
-  };
-  operations: {
-    plans: number;
-    planByStatus: Record<string, number>;
-    tasks: number;
-    taskByStatus: Record<string, number>;
-    siteReports: number;
-    siteReportByStatus: Record<string, number>;
-    averageProgress: number | null;
-    progressRecords: number;
-    progressQuantity: number;
-    inspections: number;
-    incidents: number;
-    incidentBySeverity: Record<string, number>;
-    materialMovements: number;
-  };
-  materials: Array<{ movement: string; count: number; quantity: number }>;
-  outstanding: { followUps: number; pendingReports: number; openDefects: number };
-  timeline: Array<{
-    key: string;
-    attendance: number;
-    siteReports: number;
-    materialMovements: number;
-    incidents: number;
-  }>;
-};
-
 type LoadedReport<T> = { key: string; data: T } | { key: string; error: string };
 
 function val(v: unknown) { return v === null || v === undefined || v === "" ? "—" : String(v); }
-function breakdown(record: Record<string, number>) {
+function breakdown(record: Record<string, string | number>) {
   const entries = Object.entries(record);
-  return entries.length ? entries.map(([key, value]) => `${key}: ${value}`).join(" · ") : "None";
+  return entries.length ? entries.map(([key, value]) => `${key}: ${String(value)}`).join(" · ") : "None";
+}
+
+function dailyCsvRows(report: DailyReport): CsvRow[] {
+  const rows: CsvRow[] = [
+    ["Daily operations report", report.date],
+    [],
+    ["Attendance", "Total entries", report.attendance.total],
+    ...statusRows("Attendance status", report.attendance.summary).slice(1),
+    [],
+    ["Attendance records", "Worker", "Site", "Status", "Check-in", "Check-out", "Notes"],
+    ...report.attendance.records.map((r) => ["Record", val(r.workerName), val(r.siteName), val(r.status), val(r.checkIn), val(r.checkOut), val(r.notes)]),
+    [],
+    ["Plans", "ID", "Date", "Supervisor", "Status", "Tasks"],
+    ...report.plans.map((p) => ["Plan", val(p.id), val(p.planDate), val(p.supervisorName), val(p.status), (p.tasks ?? []).length]),
+    [],
+    ["Site reports", "ID", "Date", "Supervisor", "Progress %", "Status", "Completed work", "Challenges", "Delays"],
+    ...report.progress.siteReports.map((r) => ["Site report", val(r.id), val(r.reportDate), val(r.supervisorName), val(r.progressPercent), val(r.status), val(r.completedWork), val(r.challenges), val(r.delays)]),
+    [],
+    ["Progress records", "ID", "Package", "Recorded on", "Quantity"],
+    ...report.progress.progressRecords.map((r) => ["Progress", val(r.id), val(r.workPackageId), val(r.recordedOn), val(r.quantityCompleted)]),
+    [],
+    ["Material movements", "Material", "Movement", "Quantity", "Unit", "Notes"],
+    ...report.materials.transactions.map((t) => ["Movement", val(t.materialName), val(t.movement), val(t.quantity), val(t.materialUnit), val(t.notes)]),
+    [],
+    ["Material stock", "Material", "SKU", "Received", "Issued", "Adjusted", "Remaining", "Unit"],
+    ...report.materials.stock.map((s) => ["Stock", val(s.name), val(s.sku), val(s.received), val(s.issued), val(s.adjusted), val(s.remaining), val(s.unit)]),
+    [],
+    ["Safety inspections", "Date", "Inspector", "Hazards", "Incidents observed", "Corrective actions", "Status"],
+    ...report.safety.inspections.map((s) => ["Inspection", val(s.inspectionDate), val(s.inspectorName), val(s.hazards), val(s.incidentsObserved), val(s.correctiveActions), val(s.status)]),
+    [],
+    ["Safety incidents", "Number", "Type", "Severity", "Status", "Description"],
+    ...report.safety.incidents.map((s) => ["Incident", val(s.incidentNumber), val(s.incidentType), val(s.severity), val(s.status), val(s.description)]),
+    [],
+    ["Outstanding follow-ups", "Report", "Issue", "Action", "Assigned to", "Due", "Status"],
+    ...report.outstandingIssues.followUps.map((f) => ["Follow-up", val(f.reportId), val(f.issue), val(f.action), val(f.assignedTo), val(f.dueDate), val(f.status)]),
+    [],
+    ["Pending site reports", "ID", "Date", "Supervisor", "Status", "Progress %"],
+    ...report.outstandingIssues.pendingReports.map((r) => ["Pending", val(r.id), val(r.reportDate), val(r.supervisorName), val(r.status), val(r.progressPercent)]),
+    [],
+    ["Open quality defects", "ID", "Title", "Severity", "Status", "Due"],
+    ...report.outstandingIssues.openDefects.map((d) => ["Defect", val(d.id), val(d.title), val(d.severity), val(d.status), val(d.dueDate)]),
+  ];
+  return rows;
+}
+
+function periodCsvRows(report: PeriodReport): CsvRow[] {
+  const op = report.operations;
+  return [
+    [`${report.period} operations report`, report.anchorDate],
+    ["Range", report.startDate, report.endDate, "end date exclusive"],
+    [],
+    ["Metric", "Value"],
+    ["Attendance entries", report.attendance.total],
+    ["Daily plans", op.plans],
+    ["Plan tasks", op.tasks],
+    ["Site reports", op.siteReports],
+    ["Average progress (%)", op.averageProgress ?? ""],
+    ["Progress records", op.progressRecords],
+    ["Progress quantity", op.progressQuantity],
+    ["Safety inspections", op.inspections],
+    ["Safety incidents", op.incidents],
+    ["Material movements", op.materialMovements],
+    ["Open follow-ups", report.outstanding.followUps],
+    ["Pending site reports", report.outstanding.pendingReports],
+    ["Open quality defects", report.outstanding.openDefects],
+    [],
+    ...statusRows("Attendance status", report.attendance.byStatus),
+    [],
+    ...statusRows("Plan status", op.planByStatus),
+    [],
+    ...statusRows("Task status", op.taskByStatus),
+    [],
+    ...statusRows("Site report status", op.siteReportByStatus),
+    [],
+    ...statusRows("Incident severity", op.incidentBySeverity),
+    [],
+    ["Timeline", "Attendance", "Site reports", "Material movements", "Incidents"],
+    ...report.timeline.map((row) => [row.key, row.attendance, row.siteReports, row.materialMovements, row.incidents]),
+    [],
+    ["Attendance breakdown", "Date", "Total", ...Object.keys(report.attendance.byStatus)],
+    ...report.attendance.byDate.map((row) => [row.day, row.total, ...Object.keys(report.attendance.byStatus).map((status) => row[status] ?? 0)]),
+    [],
+    ["Material movements", "Movement", "Transactions", "Quantity"],
+    ...report.materials.map((row) => [row.movement, row.count, row.quantity]),
+  ];
 }
 
 function DailyDetail({ date }: { date: string }) {
@@ -90,6 +140,14 @@ function DailyDetail({ date }: { date: string }) {
 
       {report && !loading && (
         <>
+          <div className="print-report-heading">
+            <h2>Daily operations report — {report.date}</h2>
+            <p>Construction operations · attendance, plans, progress, materials, safety and open issues</p>
+          </div>
+          <div className="report-toolbar">
+            <span>Report for <strong>{report.date}</strong> · {report.attendance.total} attendance entries</span>
+            <ReportExportButtons filename={`daily-report-${report.date}.csv`} buildRows={() => dailyCsvRows(report)} />
+          </div>
           <section className="management-card">
             <div className="management-card-heading"><h2>Attendance</h2><p>Total entries: {report.attendance.total}</p></div>
             <p><strong>Summary:</strong> {Object.keys(report.attendance.summary).length ? Object.entries(report.attendance.summary).map(([k, v]) => `${k}: ${v}`).join(" · ") : "No attendance recorded."}</p>
@@ -233,6 +291,14 @@ function PeriodSummary({ period, date }: { period: Period; date: string }) {
 
       {report && !loading && (
         <>
+          <div className="print-report-heading">
+            <h2>{label} operations report — {report.anchorDate}</h2>
+            <p>Range {report.startDate} to {report.endDate} (end date exclusive)</p>
+          </div>
+          <div className="report-toolbar">
+            <span><strong>{label}</strong> report · {report.startDate} to {report.endDate}</span>
+            <ReportExportButtons filename={`${period}-report-${report.anchorDate}.csv`} buildRows={() => periodCsvRows(report)} />
+          </div>
           <section className="management-card">
             <div className="management-card-heading">
               <h2>{label} summary</h2>
@@ -272,7 +338,7 @@ function PeriodSummary({ period, date }: { period: Period; date: string }) {
                 <tbody>
                   {report.attendance.byDate.map((row) => {
                     const { day, total, ...statuses } = row;
-                    return <tr key={day}><td>{day}</td><td>{total}</td><td>{breakdown(statuses as Record<string, number>)}</td></tr>;
+                    return <tr key={day}><td>{day}</td><td>{total}</td><td>{breakdown(statuses)}</td></tr>;
                   })}
                   {report.attendance.byDate.length === 0 && <tr><td className="management-empty" colSpan={3}>No attendance recorded in this period.</td></tr>}
                 </tbody>

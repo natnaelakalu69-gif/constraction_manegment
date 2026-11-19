@@ -43,6 +43,7 @@ Never commit `.env` or secrets. Production configuration will be completed along
 - `GET /api/reports/daily?date=YYYY-MM-DD`
 - `GET /api/reports/daily-operations?date=YYYY-MM-DD` — combined attendance, plans, progress, materials, safety and outstanding issues
 - `GET /api/reports/period?period=daily|weekly|monthly|yearly&date=YYYY-MM-DD` — aggregated operations report for the range containing the anchor date (weekly = Mon–Sun, monthly = calendar month, yearly = calendar year; end date is exclusive; yearly trend buckets by month)
+- `GET /api/reports/executive?date=YYYY-MM-DD` — portfolio KPIs (projects, sites, workforce) plus all four period reports in one response
 - `GET/POST /api/modules/:resource` for `projects`, `work-packages`, `progress-records`, `budgets`, `project-costs`, `materials`, `inventory-transactions`, `equipment`, `equipment-usage`, `safety-incidents`, `quality-inspections`, `quality-defects`, `daily-plans`, `daily-plan-tasks`, `daily-site-reports`, `daily-follow-ups`, and `safety-inspections`
 - `PATCH /api/modules/:resource/:id` updates any editable field on every module resource listed above (per-resource field whitelist); `daily-site-reports` also sets `reviewedAt` when status becomes `approved` or `rejected`
 - `DELETE /api/modules/:resource/:id` deletes a record company-scoped; referenced records return HTTP 409
@@ -59,7 +60,10 @@ The management screens provide per-record **Edit** and **Delete** actions: the g
 - `/materials` — the materials manager records receipts/issues and sees received, issued and remaining stock.
 - `/safety` — the safety officer records hazards, incidents observed and corrective actions.
 - `/daily-summary` — operations reports with a period selector: **Daily** shows the detailed daily report (attendance, plans, progress, materials, safety and outstanding issues), while **Weekly**, **Monthly** and **Yearly** show aggregated metrics and trends for the selected range.
+- `/executive-summary` — executive summary with portfolio KPIs, a four-period comparison table, CSS bar charts and current outstanding items.
 - `/roles` — create roles and permissions, grant permissions to roles, create app users, and assign roles to users. Standard roles (Admin, Project Manager, Site Supervisor, Materials Manager, Safety Officer) and their permission grants are seeded on first use.
+
+Both report pages include **Download CSV** and **Print / Save PDF** controls. CSV files are UTF-8 with a BOM for spreadsheet compatibility; printing uses a report-only layout that hides the app navigation and buttons.
 
 All enterprise records are scoped to the first company in the database; a default company is created automatically on first use because company switching is not implemented yet.
 
