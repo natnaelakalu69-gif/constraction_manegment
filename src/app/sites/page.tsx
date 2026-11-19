@@ -17,9 +17,10 @@ type SiteForm = {
   siteName: string;
   location: string;
   managerName: string;
+  status: "ACTIVE" | "INACTIVE";
 };
 
-const emptyForm: SiteForm = { siteCode: "", siteName: "", location: "", managerName: "" };
+const emptyForm: SiteForm = { siteCode: "", siteName: "", location: "", managerName: "", status: "ACTIVE" };
 
 export default function SitesPage() {
   const [sites, setSites] = useState<Site[]>([]);
@@ -28,6 +29,7 @@ export default function SitesPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<number | null>(null);
 
   async function loadSites() {
     setIsLoading(true);
@@ -58,17 +60,38 @@ export default function SitesPage() {
     return () => { cancelled = true; };
   }, []);
 
+  function startEdit(site: Site) {
+    setEditingId(site.id);
+    setForm({
+      siteCode: site.siteCode,
+      siteName: site.siteName,
+      location: site.location,
+      managerName: site.managerName ?? "",
+      status: site.status === "INACTIVE" ? "INACTIVE" : "ACTIVE",
+    });
+    setError(null);
+    setSuccess(null);
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setForm(emptyForm);
+    setError(null);
+    setSuccess(null);
+  }
+
   async function addSite(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const editing = editingId !== null;
     const siteCode = form.siteCode.trim();
     const siteName = form.siteName.trim();
     const location = form.location.trim();
 
-    if (!siteCode || !siteName || !location) {
+    if ((!editing && !siteCode) || !siteName || !location) {
       setError("Site code, site name, and location are required.");
       return;
     }
-    if (sites.some((site) => site.siteCode.toLowerCase() === siteCode.toLowerCase())) {
+    if (!editing && sites.some((site) => site.siteCode.toLowerCase() === siteCode.toLowerCase())) {
       setError(`Site code "${siteCode}" already exists.`);
       return;
     }
@@ -77,8 +100,8 @@ export default function SitesPage() {
     setError(null);
     setSuccess(null);
     try {
-      await fetchJson<Site>("/api/sites", {
-        method: "POST",
+      await fetchJson<Site>(editing ? `/api/sites/${editingId}` : "/api/sites", {
+        method: editing ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...form,
@@ -89,10 +112,11 @@ export default function SitesPage() {
         }),
       });
       setForm(emptyForm);
-      setSuccess("Site added.");
+      setEditingId(null);
+      setSuccess(editing ? "Site updated." : "Site added.");
       await loadSites();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Site could not be added.");
+      setError(cause instanceof Error ? cause.message : `Site could not be ${editing ? "updated" : "added"}.`);
     } finally {
       setIsSaving(false);
     }
@@ -116,13 +140,13 @@ export default function SitesPage() {
 
       <section className="management-card">
         <div className="management-card-heading">
-          <h2>Add a site</h2>
+          <h2>{editingId !== null ? "Edit site" : "Add a site"}</h2>
           <p>Site code, site name, and location are required.</p>
         </div>
         <form className="management-form" onSubmit={addSite}>
           <label>
             Site code
-            <input value={form.siteCode} onChange={(event) => setForm({ ...form, siteCode: event.target.value })} required />
+            <input value={form.siteCode} disabled={editingId !== null} onChange={(event) => setForm({ ...form, siteCode: event.target.value })} required />
           </label>
           <label>
             Site name
@@ -136,10 +160,22 @@ export default function SitesPage() {
             Manager
             <input value={form.managerName} onChange={(event) => setForm({ ...form, managerName: event.target.value })} />
           </label>
+          <label>
+            Status
+            <select value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value as SiteForm["status"] })}>
+              <option value="ACTIVE">Active</option>
+              <option value="INACTIVE">Inactive</option>
+            </select>
+          </label>
           <div className="form-actions">
             <button className="button button-primary" type="submit" disabled={isSaving}>
-              {isSaving ? "Adding…" : "Add site"}
+              {isSaving ? "Saving…" : editingId !== null ? "Save changes" : "Add site"}
             </button>
+            {editingId !== null && (
+              <button className="button button-secondary" type="button" onClick={cancelEdit} disabled={isSaving}>
+                Cancel edit
+              </button>
+            )}
           </div>
         </form>
       </section>
@@ -152,17 +188,25 @@ export default function SitesPage() {
         <div className="management-table-wrap">
           <table className="management-table">
             <thead>
-              <tr><th scope="col">Code</th><th scope="col">Site</th><th scope="col">Location</th><th scope="col">Manager</th><th scope="col">Status</th></tr>
+              <tr>
+                <th scope="col">Code</th><th scope="col">Site</th><th scope="col">Location</th>
+                <th scope="col">Manager</th><th scope="col">Status</th><th scope="col">ACTIONS</th>
+              </tr>
             </thead>
             <tbody>
               {sites.map((site) => (
-                <tr key={site.id}>
+                <tr key={site.id} className={editingId === site.id ? "editing-row" : undefined}>
                   <td>{site.siteCode}</td><td>{site.siteName}</td><td>{site.location}</td>
                   <td>{site.managerName || "—"}</td><td>{site.status}</td>
+                  <td>
+                    <button className="button button-secondary row-action" type="button" onClick={() => startEdit(site)} disabled={isSaving}>
+                      Edit
+                    </button>
+                  </td>
                 </tr>
               ))}
-              {isLoading && <tr><td className="management-empty" colSpan={5}>Loading sites…</td></tr>}
-              {!isLoading && !error && sites.length === 0 && <tr><td className="management-empty" colSpan={5}>No sites have been added yet.</td></tr>}
+              {isLoading && <tr><td className="management-empty" colSpan={6}>Loading sites…</td></tr>}
+              {!isLoading && !error && sites.length === 0 && <tr><td className="management-empty" colSpan={6}>No sites have been added yet.</td></tr>}
             </tbody>
           </table>
         </div>

@@ -1,34 +1,170 @@
 import { NextResponse } from "next/server";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { dailyFollowUps, dailyPlans, dailySiteReports, safetyInspections } from "@/db/schema/enterprise";
+import {
+  budgets, dailyFollowUps, dailyPlanTasks, dailyPlans, dailySiteReports, equipment,
+  equipmentUsage, inventoryTransactions, materials, progressRecords, projectCosts,
+  projects, qualityDefects, qualityInspections, safetyIncidents, safetyInspections, workPackages,
+} from "@/db/schema/enterprise";
+import { isUniqueConstraintViolation } from "@/lib/postgres-errors";
 import { getWorkspaceCompanyId } from "@/lib/workspace";
 
 class BadRequest extends Error {}
 
 type Body = Record<string, unknown>;
-const text = (b: Body, key: string) => {
-  const v = b[key];
-  return typeof v === "string" && v.trim() ? v.trim() : v === "" || v === null ? null : undefined;
-};
-const date = (b: Body, key: string) => {
-  const v = text(b, key);
-  if (v === undefined || v === null) return v;
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) throw new BadRequest(`${key} must be a date (YYYY-MM-DD).`);
-  return v;
-};
-const oneOf = <T extends string>(b: Body, key: string, allowed: readonly T[]) => {
-  const v = text(b, key);
-  if (v === undefined || v === null) return v;
-  if (!allowed.includes(v as T)) throw new BadRequest(`${key} must be one of: ${allowed.join(", ")}.`);
-  return v as T;
-};
+type FieldType = "text" | "int" | "number" | "date" | "datetime" | "enum";
+type FieldSpec = { type: FieldType; allowed?: readonly string[]; required?: boolean };
 
 const APPROVAL = ["draft", "submitted", "approved", "rejected", "cancelled"] as const;
-const FOLLOWUP = ["open", "in_progress", "done", "cancelled"] as const;
+const INVENTORY_MOVEMENTS = ["receipt", "issue", "return", "transfer_in", "transfer_out", "adjustment", "wastage"] as const;
+
+const TABLES: Record<string, any> = {
+  projects,
+  "work-packages": workPackages,
+  "progress-records": progressRecords,
+  budgets,
+  "project-costs": projectCosts,
+  materials,
+  "inventory-transactions": inventoryTransactions,
+  equipment,
+  "equipment-usage": equipmentUsage,
+  "safety-incidents": safetyIncidents,
+  "quality-inspections": qualityInspections,
+  "quality-defects": qualityDefects,
+  "daily-plans": dailyPlans,
+  "daily-plan-tasks": dailyPlanTasks,
+  "daily-site-reports": dailySiteReports,
+  "daily-follow-ups": dailyFollowUps,
+  "safety-inspections": safetyInspections,
+};
+
+const EDITABLE: Record<string, Record<string, FieldSpec>> = {
+  projects: {
+    code: { type: "text", required: true }, name: { type: "text", required: true },
+    clientName: { type: "text" }, location: { type: "text" },
+    status: { type: "enum", allowed: ["planning", "active", "suspended", "completed", "cancelled"] },
+    budget: { type: "number" }, startDate: { type: "date" }, plannedEndDate: { type: "date" },
+  },
+  "work-packages": {
+    projectId: { type: "int", required: true }, code: { type: "text", required: true },
+    name: { type: "text", required: true }, unit: { type: "text", required: true },
+    plannedQuantity: { type: "number" }, plannedStart: { type: "date" }, plannedEnd: { type: "date" },
+  },
+  "progress-records": {
+    workPackageId: { type: "int", required: true }, recordedOn: { type: "date", required: true },
+    quantityCompleted: { type: "number", required: true }, notes: { type: "text" },
+  },
+  budgets: {
+    projectId: { type: "int", required: true }, costCode: { type: "text", required: true },
+    description: { type: "text", required: true }, plannedAmount: { type: "number", required: true },
+  },
+  "project-costs": {
+    projectId: { type: "int", required: true }, category: { type: "text", required: true },
+    description: { type: "text" }, amount: { type: "number", required: true },
+    incurredOn: { type: "date", required: true }, reference: { type: "text" },
+  },
+  materials: {
+    sku: { type: "text", required: true }, name: { type: "text", required: true },
+    unit: { type: "text", required: true }, minimumStock: { type: "number" },
+  },
+  "inventory-transactions": {
+    materialId: { type: "int", required: true }, movement: { type: "enum", allowed: INVENTORY_MOVEMENTS, required: true },
+    quantity: { type: "number", required: true }, unitCost: { type: "number" },
+    occurredAt: { type: "datetime" }, notes: { type: "text" },
+  },
+  equipment: {
+    equipmentNumber: { type: "text", required: true }, name: { type: "text", required: true },
+    equipmentType: { type: "text" },
+  },
+  "equipment-usage": {
+    equipmentId: { type: "int", required: true }, usageDate: { type: "date", required: true },
+    workingHours: { type: "number" }, fuelLiters: { type: "number" }, notes: { type: "text" },
+  },
+  "safety-incidents": {
+    incidentNumber: { type: "text", required: true }, incidentType: { type: "text", required: true },
+    occurredAt: { type: "datetime", required: true },
+    severity: { type: "enum", allowed: ["low", "medium", "high", "critical"] },
+    description: { type: "text", required: true }, status: { type: "enum", allowed: APPROVAL },
+  },
+  "quality-inspections": {
+    projectId: { type: "int", required: true }, inspectionDate: { type: "date", required: true },
+    result: { type: "enum", allowed: ["pass", "fail", "conditional"], required: true }, notes: { type: "text" },
+  },
+  "quality-defects": {
+    projectId: { type: "int", required: true }, inspectionId: { type: "int" },
+    title: { type: "text", required: true }, description: { type: "text" },
+    severity: { type: "enum", allowed: ["low", "medium", "high", "critical"] },
+    status: { type: "enum", allowed: APPROVAL }, dueDate: { type: "date" },
+  },
+  "daily-plans": {
+    planDate: { type: "date", required: true }, supervisorName: { type: "text", required: true },
+    projectId: { type: "int" }, siteId: { type: "int" },
+    requiredResources: { type: "text" }, notes: { type: "text" }, status: { type: "enum", allowed: APPROVAL },
+  },
+  "daily-plan-tasks": {
+    planId: { type: "int", required: true }, task: { type: "text", required: true },
+    deadline: { type: "date" }, assignee: { type: "text" },
+    requiredResources: { type: "text" },
+    status: { type: "enum", allowed: ["planned", "in_progress", "done", "blocked"] },
+  },
+  "daily-site-reports": {
+    reportDate: { type: "date", required: true }, supervisorName: { type: "text", required: true },
+    projectId: { type: "int" }, siteId: { type: "int" }, planId: { type: "int" },
+    completedWork: { type: "text", required: true }, progressPercent: { type: "number", required: true },
+    photos: { type: "text" }, challenges: { type: "text" }, delays: { type: "text" },
+    status: { type: "enum", allowed: APPROVAL }, reviewNotes: { type: "text" }, reviewedBy: { type: "text" },
+  },
+  "daily-follow-ups": {
+    reportId: { type: "int" }, projectId: { type: "int" }, siteId: { type: "int" },
+    issue: { type: "text", required: true }, action: { type: "text", required: true },
+    assignedTo: { type: "text" }, dueDate: { type: "date" },
+    status: { type: "enum", allowed: ["open", "in_progress", "done", "cancelled"] }, notes: { type: "text" },
+  },
+  "safety-inspections": {
+    inspectionDate: { type: "date", required: true }, inspectorName: { type: "text", required: true },
+    projectId: { type: "int" }, siteId: { type: "int" },
+    hazards: { type: "text" }, incidentsObserved: { type: "text" },
+    correctiveActions: { type: "text" }, status: { type: "enum", allowed: APPROVAL }, notes: { type: "text" },
+  },
+};
+
+function coerce(value: unknown, spec: FieldSpec, key: string) {
+  if (value === null || value === undefined || value === "") {
+    if (spec.required) throw new BadRequest(`${key} is required.`);
+    return null;
+  }
+  if (spec.type === "int") {
+    const raw = typeof value === "number" || typeof value === "string" ? String(value).trim() : "";
+    const parsed = Number.parseInt(raw, 10);
+    if (!/^\d+$/.test(raw) || !Number.isInteger(parsed) || parsed <= 0) throw new BadRequest(`${key} must be a positive integer.`);
+    return parsed;
+  }
+  if (spec.type === "number") {
+    const raw = typeof value === "number" || typeof value === "string" ? String(value).trim() : "";
+    if (!raw || Number.isNaN(Number(raw))) throw new BadRequest(`${key} must be a number.`);
+    return raw;
+  }
+  if (spec.type === "date") {
+    const raw = String(value);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) throw new BadRequest(`${key} must be a date (YYYY-MM-DD).`);
+    return raw;
+  }
+  if (spec.type === "datetime") {
+    const parsed = new Date(String(value));
+    if (Number.isNaN(parsed.getTime())) throw new BadRequest(`${key} must be a valid date and time.`);
+    return parsed;
+  }
+  const raw = String(value).trim();
+  if (spec.allowed && !spec.allowed.includes(raw)) throw new BadRequest(`${key} must be one of: ${spec.allowed.join(", ")}.`);
+  return raw;
+}
 
 export async function PATCH(req: Request, ctx: { params: Promise<{ resource: string; id: string }> }) {
   const { resource, id: rawId } = await ctx.params;
+  const table = TABLES[resource];
+  const editable = EDITABLE[resource];
+  if (!table || !editable) return NextResponse.json({ error: "Updates are not supported for this resource." }, { status: 404 });
+
   const id = Number.parseInt(rawId, 10);
   if (!Number.isInteger(id) || id <= 0) return NextResponse.json({ error: "Invalid id." }, { status: 400 });
 
@@ -36,57 +172,27 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ resource: str
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Request body must be valid JSON." }, { status: 400 }); }
   if (!body || typeof body !== "object" || Array.isArray(body)) return NextResponse.json({ error: "Request body must be a JSON object." }, { status: 400 });
   const b = body as Body;
-  const companyId = await getWorkspaceCompanyId();
 
   try {
-    if (resource === "daily-site-reports") {
-      const values: Record<string, unknown> = {};
-      const status = oneOf(b, "status", APPROVAL); if (status !== undefined) values.status = status ?? "submitted";
-      const reviewNotes = text(b, "reviewNotes"); if (reviewNotes !== undefined) values.reviewNotes = reviewNotes;
-      const delays = text(b, "delays"); if (delays !== undefined) values.delays = delays;
-      const reviewedBy = text(b, "reviewedBy"); if (reviewedBy !== undefined) values.reviewedBy = reviewedBy;
-      if (status === "approved" || status === "rejected") values.reviewedAt = new Date();
-      if (Object.keys(values).length === 0) throw new BadRequest("No valid fields to update.");
-      const [row] = await db.update(dailySiteReports).set(values).where(and(eq(dailySiteReports.id, id), eq(dailySiteReports.companyId, companyId))).returning();
-      if (!row) return NextResponse.json({ error: "Record not found." }, { status: 404 });
-      return NextResponse.json(row);
+    const values: Record<string, unknown> = {};
+    for (const [key, spec] of Object.entries(editable)) {
+      if (key in b) values[key] = coerce(b[key], spec, key);
     }
-    if (resource === "daily-follow-ups") {
-      const values: Record<string, unknown> = {};
-      const status = oneOf(b, "status", FOLLOWUP); if (status !== undefined) values.status = status ?? "open";
-      const notes = text(b, "notes"); if (notes !== undefined) values.notes = notes;
-      const action = text(b, "action"); if (action !== undefined) values.action = action;
-      const issue = text(b, "issue"); if (issue !== undefined) values.issue = issue;
-      const assignedTo = text(b, "assignedTo"); if (assignedTo !== undefined) values.assignedTo = assignedTo;
-      const dueDate = date(b, "dueDate"); if (dueDate !== undefined) values.dueDate = dueDate;
-      if (Object.keys(values).length === 0) throw new BadRequest("No valid fields to update.");
-      if (values.issue === null || values.action === null) throw new BadRequest("issue and action cannot be empty.");
-      const [row] = await db.update(dailyFollowUps).set(values).where(and(eq(dailyFollowUps.id, id), eq(dailyFollowUps.companyId, companyId))).returning();
-      if (!row) return NextResponse.json({ error: "Record not found." }, { status: 404 });
-      return NextResponse.json(row);
+    if (resource === "daily-site-reports" && "status" in values) {
+      values.reviewedAt = values.status === "approved" || values.status === "rejected" ? new Date() : null;
     }
-    if (resource === "daily-plans") {
-      const values: Record<string, unknown> = {};
-      const status = oneOf(b, "status", APPROVAL); if (status !== undefined) values.status = status ?? "draft";
-      const notes = text(b, "notes"); if (notes !== undefined) values.notes = notes;
-      if (Object.keys(values).length === 0) throw new BadRequest("No valid fields to update.");
-      const [row] = await db.update(dailyPlans).set(values).where(and(eq(dailyPlans.id, id), eq(dailyPlans.companyId, companyId))).returning();
-      if (!row) return NextResponse.json({ error: "Record not found." }, { status: 404 });
-      return NextResponse.json(row);
-    }
-    if (resource === "safety-inspections") {
-      const values: Record<string, unknown> = {};
-      const status = oneOf(b, "status", APPROVAL); if (status !== undefined) values.status = status ?? "submitted";
-      const notes = text(b, "notes"); if (notes !== undefined) values.notes = notes;
-      const corrective = text(b, "correctiveActions"); if (corrective !== undefined) values.correctiveActions = corrective;
-      if (Object.keys(values).length === 0) throw new BadRequest("No valid fields to update.");
-      const [row] = await db.update(safetyInspections).set(values).where(and(eq(safetyInspections.id, id), eq(safetyInspections.companyId, companyId))).returning();
-      if (!row) return NextResponse.json({ error: "Record not found." }, { status: 404 });
-      return NextResponse.json(row);
-    }
-    return NextResponse.json({ error: "Updates are not supported for this resource." }, { status: 404 });
+    if (Object.keys(values).length === 0) throw new BadRequest("No valid fields to update.");
+    if ("updatedAt" in table) values.updatedAt = new Date();
+
+    const companyId = await getWorkspaceCompanyId();
+    const [row] = await db.update(table).set(values)
+      .where(and(eq(table.id, id), eq(table.companyId, companyId)))
+      .returning();
+    if (!row) return NextResponse.json({ error: "Record not found." }, { status: 404 });
+    return NextResponse.json(row);
   } catch (error) {
     if (error instanceof BadRequest) return NextResponse.json({ error: error.message }, { status: 400 });
+    if (isUniqueConstraintViolation(error)) return NextResponse.json({ error: "A record with that code already exists." }, { status: 409 });
     console.error("Failed to update module record:", error);
     return NextResponse.json({ error: "The record could not be updated." }, { status: 500 });
   }

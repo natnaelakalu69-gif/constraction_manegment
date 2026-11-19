@@ -59,6 +59,7 @@ export default function AttendancePage() {
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<number | null>(null);
 
   const loadData = useCallback(() => Promise.all([
     fetchJson<Worker[]>("/api/workers"),
@@ -100,6 +101,28 @@ export default function AttendancePage() {
     }
   }
 
+  function startEdit(record: AttendanceRecord) {
+    setEditingId(record.id);
+    setForm({
+      workerId: String(record.workerId),
+      siteId: String(record.siteId),
+      attendanceDate: form.attendanceDate,
+      checkIn: record.checkIn?.slice(0, 5) ?? "",
+      checkOut: record.checkOut?.slice(0, 5) ?? "",
+      status: record.status as AttendanceForm["status"],
+      notes: record.notes ?? "",
+    });
+    setError(null);
+    setSuccess(null);
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setForm(createForm());
+    setError(null);
+    setSuccess(null);
+  }
+
   async function saveAttendance(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIsSaving(true);
@@ -111,7 +134,9 @@ export default function AttendancePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
       });
-      setSuccess("Attendance saved.");
+      setSuccess(editingId !== null ? "Attendance entry updated." : "Attendance saved.");
+      setEditingId(null);
+      setForm(createForm());
       await refreshData();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Attendance could not be saved.");
@@ -138,7 +163,7 @@ export default function AttendancePage() {
 
       <section className="management-card">
         <div className="management-card-heading">
-          <h2>Record attendance</h2>
+          <h2>{editingId !== null ? "Edit attendance entry" : "Record attendance"}</h2>
           <p>Saving again for the same worker and date updates that entry and its recorded login time.</p>
         </div>
         <form className="management-form" onSubmit={saveAttendance}>
@@ -147,6 +172,7 @@ export default function AttendancePage() {
             <input
               type="date"
               value={form.attendanceDate}
+              disabled={editingId !== null}
               onChange={(event) => {
                 setRecords([]);
                 setIsLoading(true);
@@ -157,7 +183,7 @@ export default function AttendancePage() {
           </label>
           <label>
             Worker
-            <select value={form.workerId} onChange={(event) => setForm({ ...form, workerId: event.target.value })} required>
+            <select value={form.workerId} disabled={editingId !== null} onChange={(event) => setForm({ ...form, workerId: event.target.value })} required>
               <option value="">Select a worker</option>
               {workers.map((worker) => <option value={worker.id} key={worker.id}>{worker.workerCode} — {worker.fullName}</option>)}
             </select>
@@ -192,8 +218,13 @@ export default function AttendancePage() {
           </label>
           <div className="form-actions">
             <button className="button button-primary" type="submit" disabled={isSaving || workers.length === 0 || sites.length === 0}>
-              {isSaving ? "Saving…" : "Save attendance"}
+              {isSaving ? "Saving…" : editingId !== null ? "Save changes" : "Save attendance"}
             </button>
+            {editingId !== null && (
+              <button className="button button-secondary" type="button" onClick={cancelEdit} disabled={isSaving}>
+                Cancel edit
+              </button>
+            )}
           </div>
         </form>
       </section>
@@ -206,20 +237,29 @@ export default function AttendancePage() {
         <div className="management-table-wrap">
           <table className="management-table">
             <thead>
-              <tr><th scope="col">Worker</th><th scope="col">Site</th><th scope="col">Check-in</th><th scope="col">Check-out</th><th scope="col">Logged in at</th><th scope="col">Status</th><th scope="col">Notes</th></tr>
+              <tr>
+                <th scope="col">Worker</th><th scope="col">Site</th><th scope="col">Check-in</th>
+                <th scope="col">Check-out</th><th scope="col">Logged in at</th><th scope="col">Status</th>
+                <th scope="col">Notes</th><th scope="col">ACTIONS</th>
+              </tr>
             </thead>
             <tbody>
               {records.map((record) => (
-                <tr key={record.id}>
+                <tr key={record.id} className={editingId === record.id ? "editing-row" : undefined}>
                   <td>{workers.find((worker) => worker.id === record.workerId)?.fullName ?? `#${record.workerId}`}</td>
                   <td>{sites.find((site) => site.id === record.siteId)?.siteName ?? `#${record.siteId}`}</td>
                   <td>{record.checkIn || "—"}</td><td>{record.checkOut || "—"}</td>
                   <td>{formatLoggedInAt(record.loggedInAt)}</td>
                   <td>{record.status}</td><td>{record.notes || "—"}</td>
+                  <td>
+                    <button className="button button-secondary row-action" type="button" onClick={() => startEdit(record)} disabled={isSaving}>
+                      Edit
+                    </button>
+                  </td>
                 </tr>
               ))}
-              {isLoading && <tr><td className="management-empty" colSpan={7}>Loading attendance…</td></tr>}
-              {!isLoading && !error && records.length === 0 && <tr><td className="management-empty" colSpan={7}>No attendance entries for this date.</td></tr>}
+              {isLoading && <tr><td className="management-empty" colSpan={8}>Loading attendance…</td></tr>}
+              {!isLoading && !error && records.length === 0 && <tr><td className="management-empty" colSpan={8}>No attendance entries for this date.</td></tr>}
             </tbody>
           </table>
         </div>

@@ -31,6 +31,8 @@ export default function DailyReportsPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [editingReportId, setEditingReportId] = useState<number | null>(null);
+  const [editingFollowUp, setEditingFollowUp] = useState<{ id: number; reportId: number } | null>(null);
 
   const load = useCallback(async () => {
     const [r, f, p, pr] = await Promise.all([
@@ -56,15 +58,46 @@ export default function DailyReportsPage() {
     return () => { active = false; };
   }, [load]);
 
+  function startReportEdit(report: Report) {
+    setEditingReportId(report.id);
+    setForm({
+      reportDate: report.reportDate,
+      supervisorName: report.supervisorName,
+      projectId: report.projectId ? String(report.projectId) : "",
+      planId: report.planId ? String(report.planId) : "",
+      completedWork: report.completedWork,
+      progressPercent: String(report.progressPercent),
+      photos: report.photos ?? "",
+      challenges: report.challenges ?? "",
+      delays: "",
+      status: report.status,
+    });
+    setError(null); setSuccess(null);
+  }
+
+  function cancelReportEdit() {
+    setEditingReportId(null);
+    setForm({ ...emptyReport, reportDate: new Date().toISOString().slice(0, 10) });
+    setError(null); setSuccess(null);
+  }
+
   async function submitReport(e: FormEvent) {
     e.preventDefault();
+    const editing = editingReportId !== null;
+    const body: Record<string, string> = { ...form };
+    if (editing) delete body.status;
     setError(null); setSuccess(null);
     try {
-      await fetchJson("/api/modules/daily-site-reports", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
+      await fetchJson(editing ? `/api/modules/daily-site-reports/${editingReportId}` : "/api/modules/daily-site-reports", {
+        method: editing ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
       setForm({ ...emptyReport, reportDate: form.reportDate });
-      setSuccess("Daily site report submitted.");
+      setEditingReportId(null);
+      setSuccess(editing ? "Daily site report updated." : "Daily site report submitted.");
       await load();
-    } catch (err) { setError(err instanceof Error ? err.message : "Report could not be submitted."); }
+    } catch (err) { setError(err instanceof Error ? err.message : "Report could not be saved."); }
   }
 
   async function applyReview(report: Report) {
@@ -77,16 +110,46 @@ export default function DailyReportsPage() {
     } catch (err) { setError(err instanceof Error ? err.message : "Review could not be saved."); }
   }
 
+  function startFollowUpEdit(followUp: FollowUp) {
+    const reportId = followUp.reportId ?? 0;
+    setEditingFollowUp({ id: followUp.id, reportId });
+    setFollowForm((s) => ({
+      ...s,
+      [reportId]: {
+        issue: followUp.issue,
+        action: followUp.action,
+        assignedTo: followUp.assignedTo ?? "",
+        dueDate: followUp.dueDate ?? "",
+      },
+    }));
+    setError(null); setSuccess(null);
+  }
+
+  function cancelFollowUpEdit() {
+    if (editingFollowUp) {
+      const reportId = editingFollowUp.reportId;
+      setFollowForm((s) => ({ ...s, [reportId]: { issue: "", action: "", assignedTo: "", dueDate: "" } }));
+    }
+    setEditingFollowUp(null);
+    setError(null); setSuccess(null);
+  }
+
   async function addFollowUp(reportId: number) {
     const f = followForm[reportId] ?? { issue: "", action: "", assignedTo: "", dueDate: "" };
     if (!f.issue.trim() || !f.action.trim()) { setError("Follow-up issue and action are required."); return; }
+    const editing = editingFollowUp?.id != null;
     setError(null); setSuccess(null);
     try {
-      await fetchJson("/api/modules/daily-follow-ups", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reportId, ...f, status: "open" }) });
+      await fetchJson(editing ? `/api/modules/daily-follow-ups/${editingFollowUp.id}` : "/api/modules/daily-follow-ups", {
+        method: editing ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(editing ? f : { reportId, ...f, status: "open" }),
+      });
       setFollowForm((s) => ({ ...s, [reportId]: { issue: "", action: "", assignedTo: "", dueDate: "" } }));
-      setSuccess("Follow-up action assigned.");
+      setEditingFollowUp(null);
+      setSuccess(editing ? "Follow-up updated." : "Follow-up action assigned.");
       await load();
-    } catch (err) { setError(err instanceof Error ? err.message : "Follow-up could not be added."); }
+    } catch (err) { setError(err instanceof Error ? err.message : "Follow-up could not be saved."); }
   }
 
   async function setFollowUpStatus(id: number, status: string) {
@@ -111,7 +174,7 @@ export default function DailyReportsPage() {
       {success && <div className="management-message success-message" role="status">{success}</div>}
 
       <section className="management-card">
-        <div className="management-card-heading"><h2>Submit daily site report</h2><p>Record completed work, progress %, photos, and challenges.</p></div>
+        <div className="management-card-heading"><h2>{editingReportId !== null ? "Edit daily site report" : "Submit daily site report"}</h2><p>Record completed work, progress %, photos, and challenges.</p></div>
         <form className="management-form" onSubmit={submitReport}>
           <label>Report date<input type="date" required value={form.reportDate} onChange={(e) => setForm({ ...form, reportDate: e.target.value })} /></label>
           <label>Supervisor name<input required value={form.supervisorName} onChange={(e) => setForm({ ...form, supervisorName: e.target.value })} /></label>
@@ -121,7 +184,10 @@ export default function DailyReportsPage() {
           <label>Progress %<input type="number" step="0.01" min="0" max="100" required value={form.progressPercent} onChange={(e) => setForm({ ...form, progressPercent: e.target.value })} /></label>
           <label className="form-field-wide">Photos (URLs or paths, one per line)<textarea value={form.photos} onChange={(e) => setForm({ ...form, photos: e.target.value })} rows={2} /></label>
           <label className="form-field-wide">Challenges<textarea value={form.challenges} onChange={(e) => setForm({ ...form, challenges: e.target.value })} rows={2} /></label>
-          <div className="form-actions"><button className="button button-primary" type="submit">Submit report</button></div>
+          <div className="form-actions">
+            <button className="button button-primary" type="submit">{editingReportId !== null ? "Save changes" : "Submit report"}</button>
+            {editingReportId !== null && <button className="button button-secondary" type="button" onClick={cancelReportEdit}>Cancel edit</button>}
+          </div>
         </form>
       </section>
 
@@ -135,10 +201,13 @@ export default function DailyReportsPage() {
             const rf = followForm[report.id] ?? { issue: "", action: "", assignedTo: "", dueDate: "" };
             const related = followUps.filter((f) => f.reportId === report.id);
             return (
-              <div key={report.id} style={{ border: "1px solid var(--border, #e5e7eb)", borderRadius: 12, padding: 16 }}>
+              <div key={report.id} className={editingReportId === report.id ? "editing-row" : undefined} style={{ border: "1px solid var(--border, #e5e7eb)", borderRadius: 12, padding: 16 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
                   <div><strong>#{report.id}</strong> — {report.reportDate} · {report.supervisorName} · {projectName(report.projectId)} · <strong>{report.progressPercent}%</strong></div>
-                  <span className="status-pill">{report.status}</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span className="status-pill">{report.status}</span>
+                    <button className="button button-secondary row-action" type="button" onClick={() => startReportEdit(report)}>Edit</button>
+                  </div>
                 </div>
                 <p style={{ margin: "8px 0" }}><strong>Completed work:</strong> {report.completedWork}</p>
                 {report.challenges && <p style={{ margin: "4px 0" }}><strong>Challenges:</strong> {report.challenges}</p>}
@@ -162,6 +231,7 @@ export default function DailyReportsPage() {
                   {related.map((f) => (
                     <div key={f.id} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 6 }}>
                       <span>#{f.id} [{f.status}] {f.issue} → {f.action} {f.assignedTo ? `(${f.assignedTo})` : ""} {f.dueDate ? `due ${f.dueDate}` : ""}</span>
+                      <button className="button button-secondary row-action" type="button" onClick={() => startFollowUpEdit(f)}>Edit</button>
                       {f.status !== "done" && <button className="button button-secondary" type="button" onClick={() => void setFollowUpStatus(f.id, "done")}>Mark done</button>}
                     </div>
                   ))}
@@ -170,7 +240,12 @@ export default function DailyReportsPage() {
                     <label>Follow-up action<input value={rf.action} onChange={(e) => setFollowForm((s) => ({ ...s, [report.id]: { ...rf, action: e.target.value } }))} /></label>
                     <label>Assign to<input value={rf.assignedTo} onChange={(e) => setFollowForm((s) => ({ ...s, [report.id]: { ...rf, assignedTo: e.target.value } }))} /></label>
                     <label>Due date<input type="date" value={rf.dueDate} onChange={(e) => setFollowForm((s) => ({ ...s, [report.id]: { ...rf, dueDate: e.target.value } }))} /></label>
-                    <div className="form-actions"><button className="button button-secondary" type="button" onClick={() => void addFollowUp(report.id)}>Add follow-up</button></div>
+                    <div className="form-actions">
+                      <button className="button button-secondary" type="button" onClick={() => void addFollowUp(report.id)}>
+                        {editingFollowUp?.id != null ? "Save changes" : "Add follow-up"}
+                      </button>
+                      {editingFollowUp?.id != null && <button className="button button-secondary" type="button" onClick={cancelFollowUpEdit}>Cancel edit</button>}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -182,10 +257,18 @@ export default function DailyReportsPage() {
       <section className="management-card">
         <div className="management-card-heading"><h2>All follow-up actions</h2><p>Track outstanding and completed follow-ups across reports.</p></div>
         <div className="management-table-wrap">
-          <table className="management-table"><thead><tr><th>Report</th><th>Issue</th><th>Action</th><th>Assigned to</th><th>Due</th><th>Status</th><th></th></tr></thead>
+          <table className="management-table">
+            <thead><tr><th>Report</th><th>Issue</th><th>Action</th><th>Assigned to</th><th>Due</th><th>Status</th><th>ACTIONS</th></tr></thead>
             <tbody>
               {followUps.map((f) => (
-                <tr key={f.id}><td>{f.reportId ?? "—"}</td><td>{f.issue}</td><td>{f.action}</td><td>{f.assignedTo ?? "—"}</td><td>{f.dueDate ?? "—"}</td><td>{f.status}</td><td>{f.status !== "done" && <button className="button button-secondary" type="button" onClick={() => void setFollowUpStatus(f.id, "done")}>Done</button>}</td></tr>
+                <tr key={f.id} className={editingFollowUp?.id === f.id ? "editing-row" : undefined}>
+                  <td>{f.reportId ?? "—"}</td><td>{f.issue}</td><td>{f.action}</td>
+                  <td>{f.assignedTo ?? "—"}</td><td>{f.dueDate ?? "—"}</td><td>{f.status}</td>
+                  <td>
+                    <button className="button button-secondary row-action" type="button" onClick={() => startFollowUpEdit(f)}>Edit</button>
+                    {f.status !== "done" && <button className="button button-secondary row-action" type="button" onClick={() => void setFollowUpStatus(f.id, "done")}>Done</button>}
+                  </td>
+                </tr>
               ))}
               {followUps.length === 0 && <tr><td className="management-empty" colSpan={7}>No follow-up actions.</td></tr>}
             </tbody>

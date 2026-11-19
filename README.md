@@ -43,13 +43,13 @@ Never commit `.env` or secrets. Production configuration will be completed along
 - `GET /api/reports/daily?date=YYYY-MM-DD`
 - `GET /api/reports/daily-operations?date=YYYY-MM-DD` — combined attendance, plans, progress, materials, safety and outstanding issues
 - `GET/POST /api/modules/:resource` for `projects`, `work-packages`, `progress-records`, `budgets`, `project-costs`, `materials`, `inventory-transactions`, `equipment`, `equipment-usage`, `safety-incidents`, `quality-inspections`, `quality-defects`, `daily-plans`, `daily-plan-tasks`, `daily-site-reports`, `daily-follow-ups`, and `safety-inspections`
-- `PATCH /api/modules/:resource/:id` for `daily-plans`, `daily-site-reports` (manager review/approval), `daily-follow-ups`, and `safety-inspections`
-- `GET/POST /api/roles` — role snapshot and role creation; `PATCH/DELETE /api/roles/:id` for custom roles
-- `POST /api/roles/permissions`, `POST/PATCH /api/roles/users[/:id]`, and `POST/DELETE /api/roles/grants` for permissions, users and grants
+- `PATCH /api/modules/:resource/:id` updates any editable field on every module resource listed above (per-resource field whitelist); `daily-site-reports` also sets `reviewedAt` when status becomes `approved` or `rejected`
+- `GET/POST /api/roles` — role snapshot and role creation; `PATCH/DELETE /api/roles/:id` for custom roles (default roles allow description edits only)
+- `POST/PATCH /api/roles/permissions[/:id]`, `POST/PATCH /api/roles/users[/:id]`, and `POST/DELETE /api/roles/grants` for permissions, users and grants
 
 These legacy endpoints are not yet the planned `/api/v1` API and do not satisfy the full security, validation, pagination, or RBAC requirements. They will be migrated in subsequent phases.
 
-The `/projects`, `/materials`, and `/safety` pages provide basic create-and-list screens for the corresponding enterprise tables. The daily workflow pages are:
+The management screens provide a per-record **Edit** action: the generic module screens load the selected row into the form and save with `PATCH`, while Workers, Sites, Roles & access, Attendance, and Daily reports use inline edit forms and save with `PUT`/`PATCH`. The daily workflow pages are:
 
 - `/daily-plans` — the project manager creates a plan and assigns tasks, deadlines, supervisors/assignees and required resources.
 - `/attendance` — the supervisor records present, absent and late workers.

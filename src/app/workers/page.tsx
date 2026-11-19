@@ -19,6 +19,7 @@ type WorkerForm = {
   position: string;
   department: string;
   phone: string;
+  status: "ACTIVE" | "INACTIVE";
 };
 
 const emptyForm: WorkerForm = {
@@ -27,6 +28,7 @@ const emptyForm: WorkerForm = {
   position: "",
   department: "",
   phone: "",
+  status: "ACTIVE",
 };
 
 export default function WorkersPage() {
@@ -36,6 +38,7 @@ export default function WorkersPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<number | null>(null);
 
   async function loadWorkers() {
     setIsLoading(true);
@@ -66,17 +69,39 @@ export default function WorkersPage() {
     return () => { cancelled = true; };
   }, []);
 
+  function startEdit(worker: Worker) {
+    setEditingId(worker.id);
+    setForm({
+      workerCode: worker.workerCode,
+      fullName: worker.fullName,
+      position: worker.position,
+      department: worker.department ?? "",
+      phone: worker.phone ?? "",
+      status: worker.status === "INACTIVE" ? "INACTIVE" : "ACTIVE",
+    });
+    setError(null);
+    setSuccess(null);
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setForm(emptyForm);
+    setError(null);
+    setSuccess(null);
+  }
+
   async function addWorker(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const editing = editingId !== null;
     const workerCode = form.workerCode.trim();
     const fullName = form.fullName.trim();
     const position = form.position.trim();
 
-    if (!workerCode || !fullName || !position) {
+    if ((!editing && !workerCode) || !fullName || !position) {
       setError("Worker code, full name, and position are required.");
       return;
     }
-    if (workers.some((worker) => worker.workerCode.toLowerCase() === workerCode.toLowerCase())) {
+    if (!editing && workers.some((worker) => worker.workerCode.toLowerCase() === workerCode.toLowerCase())) {
       setError(`Worker code "${workerCode}" already exists.`);
       return;
     }
@@ -85,8 +110,8 @@ export default function WorkersPage() {
     setError(null);
     setSuccess(null);
     try {
-      await fetchJson<Worker>("/api/workers", {
-        method: "POST",
+      await fetchJson<Worker>(editing ? `/api/workers/${editingId}` : "/api/workers", {
+        method: editing ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...form,
@@ -98,10 +123,11 @@ export default function WorkersPage() {
         }),
       });
       setForm(emptyForm);
-      setSuccess("Worker added.");
+      setEditingId(null);
+      setSuccess(editing ? "Worker updated." : "Worker added.");
       await loadWorkers();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Worker could not be added.");
+      setError(cause instanceof Error ? cause.message : `Worker could not be ${editing ? "updated" : "added"}.`);
     } finally {
       setIsSaving(false);
     }
@@ -125,13 +151,13 @@ export default function WorkersPage() {
 
       <section className="management-card">
         <div className="management-card-heading">
-          <h2>Add a worker</h2>
+          <h2>{editingId !== null ? "Edit worker" : "Add a worker"}</h2>
           <p>Worker code, name, and position are required.</p>
         </div>
         <form className="management-form" onSubmit={addWorker}>
           <label>
             Worker code
-            <input value={form.workerCode} onChange={(event) => setForm({ ...form, workerCode: event.target.value })} required />
+            <input value={form.workerCode} disabled={editingId !== null} onChange={(event) => setForm({ ...form, workerCode: event.target.value })} required />
           </label>
           <label>
             Full name
@@ -149,10 +175,22 @@ export default function WorkersPage() {
             Phone
             <input type="tel" value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} />
           </label>
+          <label>
+            Status
+            <select value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value as WorkerForm["status"] })}>
+              <option value="ACTIVE">Active</option>
+              <option value="INACTIVE">Inactive</option>
+            </select>
+          </label>
           <div className="form-actions">
             <button className="button button-primary" type="submit" disabled={isSaving}>
-              {isSaving ? "Adding…" : "Add worker"}
+              {isSaving ? "Saving…" : editingId !== null ? "Save changes" : "Add worker"}
             </button>
+            {editingId !== null && (
+              <button className="button button-secondary" type="button" onClick={cancelEdit} disabled={isSaving}>
+                Cancel edit
+              </button>
+            )}
           </div>
         </form>
       </section>
@@ -165,17 +203,26 @@ export default function WorkersPage() {
         <div className="management-table-wrap">
           <table className="management-table">
             <thead>
-              <tr><th scope="col">Code</th><th scope="col">Name</th><th scope="col">Position</th><th scope="col">Department</th><th scope="col">Phone</th><th scope="col">Status</th></tr>
+              <tr>
+                <th scope="col">Code</th><th scope="col">Name</th><th scope="col">Position</th>
+                <th scope="col">Department</th><th scope="col">Phone</th><th scope="col">Status</th>
+                <th scope="col">ACTIONS</th>
+              </tr>
             </thead>
             <tbody>
               {workers.map((worker) => (
-                <tr key={worker.id}>
+                <tr key={worker.id} className={editingId === worker.id ? "editing-row" : undefined}>
                   <td>{worker.workerCode}</td><td>{worker.fullName}</td><td>{worker.position}</td>
                   <td>{worker.department || "—"}</td><td>{worker.phone || "—"}</td><td>{worker.status}</td>
+                  <td>
+                    <button className="button button-secondary row-action" type="button" onClick={() => startEdit(worker)} disabled={isSaving}>
+                      Edit
+                    </button>
+                  </td>
                 </tr>
               ))}
-              {isLoading && <tr><td className="management-empty" colSpan={6}>Loading workers…</td></tr>}
-              {!isLoading && !error && workers.length === 0 && <tr><td className="management-empty" colSpan={6}>No workers have been added yet.</td></tr>}
+              {isLoading && <tr><td className="management-empty" colSpan={7}>Loading workers…</td></tr>}
+              {!isLoading && !error && workers.length === 0 && <tr><td className="management-empty" colSpan={7}>No workers have been added yet.</td></tr>}
             </tbody>
           </table>
         </div>

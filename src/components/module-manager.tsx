@@ -32,6 +32,17 @@ function display(value: unknown) {
   return String(value);
 }
 
+function inputValue(value: unknown, type?: ModuleField["type"]): string {
+  if (value === null || value === undefined) return "";
+  if (type === "datetime-local") {
+    const parsed = new Date(String(value));
+    if (Number.isNaN(parsed.getTime())) return String(value);
+    return new Date(parsed.getTime() - parsed.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  }
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  return String(value);
+}
+
 function ModuleSectionCard({ section }: { section: ModuleSection }) {
   const [rows, setRows] = useState<Row[]>([]);
   const [options, setOptions] = useState<Record<string, Option[]>>({});
@@ -45,8 +56,30 @@ function ModuleSectionCard({ section }: { section: ModuleSection }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<number | null>(null);
 
   const fetchRows = useCallback(async () => fetchJson<Row[]>(section.endpoint), [section.endpoint]);
+
+  function emptyForm(): Record<string, string> {
+    return Object.fromEntries(section.fields.map((field) => [
+      field.name,
+      field.type === "datetime-local" ? new Date().toISOString().slice(0, 16) : "",
+    ]));
+  }
+
+  function startEdit(row: Row) {
+    setEditingId(Number(row.id));
+    setForm(Object.fromEntries(section.fields.map((field) => [field.name, inputValue(row[field.name], field.type)])));
+    setError(null);
+    setSuccess(null);
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setForm(emptyForm());
+    setError(null);
+    setSuccess(null);
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -81,20 +114,22 @@ function ModuleSectionCard({ section }: { section: ModuleSection }) {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const editing = editingId !== null;
     setSaving(true);
     setError(null);
     setSuccess(null);
     try {
-      await fetchJson<Row>(section.endpoint, {
-        method: "POST",
+      await fetchJson<Row>(editing ? `${section.endpoint}/${editingId}` : section.endpoint, {
+        method: editing ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
       });
-      setSuccess("Record added.");
-      setForm(Object.fromEntries(section.fields.map((field) => [field.name, ""])));
+      setSuccess(editing ? "Record updated." : "Record added.");
+      if (editing) setEditingId(null);
+      setForm(emptyForm());
       setRows(await fetchRows());
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "The record could not be added.");
+      setError(cause instanceof Error ? cause.message : `The record could not be ${editing ? "updated" : "added"}.`);
     } finally {
       setSaving(false);
     }
@@ -140,23 +175,38 @@ function ModuleSectionCard({ section }: { section: ModuleSection }) {
           </label>
         ))}
         <div className="form-actions">
-          <button className="button button-primary" type="submit" disabled={saving}>{saving ? "Adding…" : "Add record"}</button>
+          <button className="button button-primary" type="submit" disabled={saving}>
+            {saving ? "Saving…" : editingId !== null ? "Save changes" : "Add record"}
+          </button>
+          {editingId !== null && (
+            <button className="button button-secondary" type="button" onClick={cancelEdit} disabled={saving}>
+              Cancel edit
+            </button>
+          )}
         </div>
       </form>
 
       <div className="management-table-wrap">
         <table className="management-table">
           <thead>
-            <tr>{section.columns.map((column) => <th scope="col" key={column.key}>{column.label}</th>)}</tr>
+            <tr>
+              {section.columns.map((column) => <th scope="col" key={column.key}>{column.label}</th>)}
+              <th scope="col">ACTIONS</th>
+            </tr>
           </thead>
           <tbody>
             {rows.map((row) => (
-              <tr key={String(row.id)}>
+              <tr key={String(row.id)} className={editingId === Number(row.id) ? "editing-row" : undefined}>
                 {section.columns.map((column) => <td key={column.key}>{display(row[column.key])}</td>)}
+                <td>
+                  <button className="button button-secondary row-action" type="button" onClick={() => startEdit(row)} disabled={saving}>
+                    Edit
+                  </button>
+                </td>
               </tr>
             ))}
-            {loading && <tr><td className="management-empty" colSpan={section.columns.length}>Loading records…</td></tr>}
-            {!loading && rows.length === 0 && <tr><td className="management-empty" colSpan={section.columns.length}>No records yet.</td></tr>}
+            {loading && <tr><td className="management-empty" colSpan={section.columns.length + 1}>Loading records…</td></tr>}
+            {!loading && rows.length === 0 && <tr><td className="management-empty" colSpan={section.columns.length + 1}>No records yet.</td></tr>}
           </tbody>
         </table>
       </div>

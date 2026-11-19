@@ -195,11 +195,13 @@ export async function createRole(b: Body) {
 export async function updateRole(id: number, b: Body) {
   const companyId = await getWorkspaceCompanyId();
   const role = await scopedRole(id, companyId);
-  if (role.isSystem) throw new RbacError("Default roles cannot be renamed.", 403);
 
   const values: Record<string, unknown> = {};
   const name = text(b, "name");
-  if (name !== null) values.name = name;
+  if (name !== null) {
+    if (role.isSystem) throw new RbacError("Default role names cannot be changed.", 403);
+    values.name = name;
+  }
   const description = text(b, "description");
   if (description !== null || b.description === "") values.description = description;
   if (Object.keys(values).length === 0) throw new RbacError("No valid fields to update.");
@@ -231,6 +233,20 @@ export async function createPermission(b: Body) {
   return permission;
 }
 
+export async function updatePermission(id: number, b: Body) {
+  const code = requiredText(b, "code");
+  if (!/^[a-z][a-z0-9_.-]*$/.test(code)) {
+    throw new RbacError("Permission code must use lowercase letters, numbers, dots, dashes or underscores.");
+  }
+  const [permission] = await db.update(permissions).set({
+    code,
+    module: requiredText(b, "module"),
+    description: text(b, "description"),
+  }).where(eq(permissions.id, id)).returning();
+  if (!permission) throw new RbacError("Permission not found.", 404);
+  return permission;
+}
+
 export async function createUser(b: Body) {
   const email = requiredText(b, "email").toLowerCase();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new RbacError("A valid email is required.");
@@ -254,6 +270,12 @@ export async function updateUser(id: number, b: Body) {
   if (!existing) throw new RbacError("User not found.", 404);
 
   const values: Record<string, unknown> = {};
+  const email = text(b, "email");
+  if (email !== null) {
+    const normalized = email.toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) throw new RbacError("A valid email is required.");
+    values.email = normalized;
+  }
   const fullName = text(b, "fullName");
   if (fullName !== null) values.fullName = fullName;
   if (typeof b.isActive === "boolean") values.isActive = b.isActive;

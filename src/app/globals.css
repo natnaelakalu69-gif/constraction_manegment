@@ -1456,6 +1456,15 @@ a.nav-link:hover {
   }
 }
 
+.row-action {
+  padding: 6px 10px;
+  font-size: 12px;
+}
+
+.editing-row {
+  background: #eef2ff;
+}
+
 .role-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
@@ -1479,6 +1488,12 @@ a.nav-link:hover {
 
 .role-card-head strong {
   font-size: 15px;
+}
+
+.role-card-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 6px;
 }
 
 .role-card-head p {

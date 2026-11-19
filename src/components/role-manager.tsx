@@ -35,7 +35,7 @@ type Snapshot = {
 
 const emptyRole = { name: "", description: "" };
 const emptyPermission = { code: "", module: "", description: "" };
-const emptyUser = { fullName: "", email: "", password: "" };
+const emptyUser = { fullName: "", email: "", password: "", status: "ACTIVE" };
 
 export default function RoleManager() {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
@@ -45,6 +45,9 @@ export default function RoleManager() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [editingRoleId, setEditingRoleId] = useState<number | null>(null);
+  const [editingPermissionId, setEditingPermissionId] = useState<number | null>(null);
+  const [editingUserId, setEditingUserId] = useState<number | null>(null);
 
   const refresh = useCallback(async () => {
     setSnapshot(await fetchJson<Snapshot>("/api/roles"));
@@ -77,14 +80,50 @@ export default function RoleManager() {
     event.preventDefault();
     void run(() => action(form), message).then((saved) => {
       if (!saved) return;
-      if (prefix === "role") setRoleForm(emptyRole);
-      if (prefix === "permission") setPermissionForm(emptyPermission);
-      if (prefix === "user") setUserForm(emptyUser);
+      if (prefix === "role") { setRoleForm(emptyRole); setEditingRoleId(null); }
+      if (prefix === "permission") { setPermissionForm(emptyPermission); setEditingPermissionId(null); }
+      if (prefix === "user") { setUserForm(emptyUser); setEditingUserId(null); }
     });
   }
 
-  const post = (url: string) => (body: Record<string, string>) =>
-    fetchJson(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const write = (method: "POST" | "PATCH", url: string) => (body: Record<string, string>) =>
+    fetchJson(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const post = (url: string) => write("POST", url);
+  const patch = (url: string) => write("PATCH", url);
+
+  function startRoleEdit(role: Role) {
+    setEditingRoleId(role.id);
+    setRoleForm({ name: role.name, description: role.description ?? "" });
+    setError(null);
+    setNotice(null);
+  }
+
+  function startPermissionEdit(permission: Permission) {
+    setEditingPermissionId(permission.id);
+    setPermissionForm({ code: permission.code, module: permission.module, description: permission.description ?? "" });
+    setError(null);
+    setNotice(null);
+  }
+
+  function startUserEdit(user: AppUser) {
+    setEditingUserId(user.id);
+    setUserForm({ fullName: user.fullName, email: user.email, password: "", status: user.isActive ? "ACTIVE" : "INACTIVE" });
+    setError(null);
+    setNotice(null);
+  }
+
+  function cancelEdit() {
+    setEditingRoleId(null);
+    setEditingPermissionId(null);
+    setEditingUserId(null);
+    setRoleForm(emptyRole);
+    setPermissionForm(emptyPermission);
+    setUserForm(emptyUser);
+    setError(null);
+    setNotice(null);
+  }
+
+  const editingSystemRole = editingRoleId !== null && snapshot?.roles.find((role) => role.id === editingRoleId)?.isSystem === true;
 
   const groupedPermissions = useMemo(() => {
     const groups = new Map<string, Permission[]>();
@@ -139,13 +178,29 @@ export default function RoleManager() {
 
       <section className="management-card">
         <div className="management-card-heading">
-          <h2>Create role</h2>
+          <h2>{editingRoleId !== null ? "Edit role" : "Create role"}</h2>
           <p>Add a custom role, then grant the permissions it needs below.</p>
         </div>
-        <form className="management-form" onSubmit={(event) => submit("role", event, roleForm, post("/api/roles"), "Role created.")}>
-          <label>Role name<input required value={roleForm.name} onChange={(event) => setRoleForm({ ...roleForm, name: event.target.value })} placeholder="e.g. Site Engineer" /></label>
+        <form
+          className="management-form"
+          onSubmit={(event) => submit(
+            "role",
+            event,
+            roleForm,
+            editingRoleId !== null ? patch(`/api/roles/${editingRoleId}`) : post("/api/roles"),
+            editingRoleId !== null ? "Role updated." : "Role created.",
+          )}
+        >
+          <label>Role name<input required disabled={editingSystemRole} value={roleForm.name} onChange={(event) => setRoleForm({ ...roleForm, name: event.target.value })} placeholder="e.g. Site Engineer" /></label>
           <label>Description<input value={roleForm.description} onChange={(event) => setRoleForm({ ...roleForm, description: event.target.value })} /></label>
-          <div className="form-actions"><button className="button button-primary" type="submit" disabled={busy}>Create role</button></div>
+          <div className="form-actions">
+            <button className="button button-primary" type="submit" disabled={busy}>
+              {busy ? "Saving…" : editingRoleId !== null ? "Save changes" : "Create role"}
+            </button>
+            {editingRoleId !== null && (
+              <button className="button button-secondary" type="button" onClick={cancelEdit} disabled={busy}>Cancel edit</button>
+            )}
+          </div>
         </form>
       </section>
 
@@ -157,23 +212,33 @@ export default function RoleManager() {
         {!snapshot && <p className="page-subtitle">Loading roles…</p>}
         <div className="role-grid">
           {(snapshot?.roles ?? []).map((role) => (
-            <article className="role-card" key={role.id}>
+            <article className={`role-card${editingRoleId === role.id ? " editing-row" : ""}`} key={role.id}>
               <div className="role-card-head">
                 <div>
                   <strong>{role.name}</strong>
                   {role.isSystem && <span className="role-badge">Default</span>}
                   <p>{role.description || "No description"}</p>
                 </div>
-                {!role.isSystem && (
+                <div className="role-card-actions">
                   <button
-                    className="button button-secondary"
+                    className="button button-secondary row-action"
                     type="button"
                     disabled={busy}
-                    onClick={() => void run(() => fetchJson(`/api/roles/${role.id}`, { method: "DELETE" }), "Role deleted.")}
+                    onClick={() => startRoleEdit(role)}
                   >
-                    Delete
+                    Edit
                   </button>
-                )}
+                  {!role.isSystem && (
+                    <button
+                      className="button button-secondary row-action"
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void run(() => fetchJson(`/api/roles/${role.id}`, { method: "DELETE" }), "Role deleted.")}
+                    >
+                      Delete
+                    </button>
+                  )}
+                </div>
               </div>
               <div className="permission-groups">
                 {groupedPermissions.map(([module, permissions]) => (
@@ -202,27 +267,104 @@ export default function RoleManager() {
 
       <section className="management-card">
         <div className="management-card-heading">
-          <h2>Permission catalogue</h2>
+          <h2>{editingPermissionId !== null ? "Edit permission" : "Permission catalogue"}</h2>
           <p>Add new permission codes to use in role grants.</p>
         </div>
-        <form className="management-form" onSubmit={(event) => submit("permission", event, permissionForm, post("/api/roles/permissions"), "Permission created.")}>
+        <form
+          className="management-form"
+          onSubmit={(event) => submit(
+            "permission",
+            event,
+            permissionForm,
+            editingPermissionId !== null ? patch(`/api/roles/permissions/${editingPermissionId}`) : post("/api/roles/permissions"),
+            editingPermissionId !== null ? "Permission updated." : "Permission created.",
+          )}
+        >
           <label>Code<input required value={permissionForm.code} onChange={(event) => setPermissionForm({ ...permissionForm, code: event.target.value })} placeholder="reports.export" /></label>
           <label>Module<input required value={permissionForm.module} onChange={(event) => setPermissionForm({ ...permissionForm, module: event.target.value })} placeholder="reports" /></label>
           <label>Description<input value={permissionForm.description} onChange={(event) => setPermissionForm({ ...permissionForm, description: event.target.value })} /></label>
-          <div className="form-actions"><button className="button button-primary" type="submit" disabled={busy}>Add permission</button></div>
+          <div className="form-actions">
+            <button className="button button-primary" type="submit" disabled={busy}>
+              {busy ? "Saving…" : editingPermissionId !== null ? "Save changes" : "Add permission"}
+            </button>
+            {editingPermissionId !== null && (
+              <button className="button button-secondary" type="button" onClick={cancelEdit} disabled={busy}>Cancel edit</button>
+            )}
+          </div>
         </form>
+
+        <div className="management-table-wrap">
+          <table className="management-table">
+            <thead>
+              <tr>
+                <th scope="col">Code</th>
+                <th scope="col">Module</th>
+                <th scope="col">Description</th>
+                <th scope="col">ACTIONS</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(snapshot?.permissions ?? []).map((permission) => (
+                <tr key={permission.id} className={editingPermissionId === permission.id ? "editing-row" : undefined}>
+                  <td>{permission.code}</td>
+                  <td>{permission.module}</td>
+                  <td>{permission.description || "—"}</td>
+                  <td>
+                    <button className="button button-secondary row-action" type="button" onClick={() => startPermissionEdit(permission)} disabled={busy}>
+                      Edit
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {!snapshot && <tr><td className="management-empty" colSpan={4}>Loading permissions…</td></tr>}
+            </tbody>
+          </table>
+        </div>
       </section>
 
       <section className="management-card">
         <div className="management-card-heading">
-          <h2>Users &amp; role assignments</h2>
+          <h2>{editingUserId !== null ? "Edit user" : "Users & role assignments"}</h2>
           <p>Create application users and choose which roles each user holds.</p>
         </div>
-        <form className="management-form" onSubmit={(event) => submit("user", event, userForm, post("/api/roles/users"), "User created.")}>
+        <form
+          className="management-form"
+          onSubmit={(event) => submit(
+            "user",
+            event,
+            userForm,
+            editingUserId !== null ? patch(`/api/roles/users/${editingUserId}`) : post("/api/roles/users"),
+            editingUserId !== null ? "User updated." : "User created.",
+          )}
+        >
           <label>Full name<input required value={userForm.fullName} onChange={(event) => setUserForm({ ...userForm, fullName: event.target.value })} /></label>
           <label>Email<input required type="email" value={userForm.email} onChange={(event) => setUserForm({ ...userForm, email: event.target.value })} /></label>
-          <label>Password<input required type="password" minLength={6} value={userForm.password} onChange={(event) => setUserForm({ ...userForm, password: event.target.value })} /></label>
-          <div className="form-actions"><button className="button button-primary" type="submit" disabled={busy}>Create user</button></div>
+          <label>
+            Password
+            <input
+              type="password"
+              minLength={6}
+              required={editingUserId === null}
+              value={userForm.password}
+              onChange={(event) => setUserForm({ ...userForm, password: event.target.value })}
+              placeholder={editingUserId !== null ? "Leave blank to keep current password" : undefined}
+            />
+          </label>
+          <label>
+            Status
+            <select value={userForm.status} onChange={(event) => setUserForm({ ...userForm, status: event.target.value })}>
+              <option value="ACTIVE">Active</option>
+              <option value="INACTIVE">Inactive</option>
+            </select>
+          </label>
+          <div className="form-actions">
+            <button className="button button-primary" type="submit" disabled={busy}>
+              {busy ? "Saving…" : editingUserId !== null ? "Save changes" : "Create user"}
+            </button>
+            {editingUserId !== null && (
+              <button className="button button-secondary" type="button" onClick={cancelEdit} disabled={busy}>Cancel edit</button>
+            )}
+          </div>
         </form>
 
         <div className="management-table-wrap">
@@ -233,11 +375,12 @@ export default function RoleManager() {
                 <th scope="col">Email</th>
                 <th scope="col">Status</th>
                 <th scope="col">Roles</th>
+                <th scope="col">ACTIONS</th>
               </tr>
             </thead>
             <tbody>
               {(snapshot?.users ?? []).map((user) => (
-                <tr key={user.id}>
+                <tr key={user.id} className={editingUserId === user.id ? "editing-row" : undefined}>
                   <td><strong>{user.fullName}</strong></td>
                   <td>{user.email}</td>
                   <td>
@@ -272,10 +415,15 @@ export default function RoleManager() {
                       ))}
                     </div>
                   </td>
+                  <td>
+                    <button className="button button-secondary row-action" type="button" onClick={() => startUserEdit(user)} disabled={busy}>
+                      Edit
+                    </button>
+                  </td>
                 </tr>
               ))}
-              {snapshot?.users.length === 0 && <tr><td className="management-empty" colSpan={4}>No application users yet. Create one above.</td></tr>}
-              {!snapshot && <tr><td className="management-empty" colSpan={4}>Loading users…</td></tr>}
+              {snapshot?.users.length === 0 && <tr><td className="management-empty" colSpan={5}>No application users yet. Create one above.</td></tr>}
+              {!snapshot && <tr><td className="management-empty" colSpan={5}>Loading users…</td></tr>}
             </tbody>
           </table>
         </div>
