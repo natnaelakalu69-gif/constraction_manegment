@@ -3,7 +3,16 @@
 import { useEffect, useState } from "react";
 import { fetchJson } from "@/lib/client-api";
 
-type Report = {
+type Period = "daily" | "weekly" | "monthly" | "yearly";
+
+const PERIODS: Array<{ key: Period; label: string }> = [
+  { key: "daily", label: "Daily" },
+  { key: "weekly", label: "Weekly" },
+  { key: "monthly", label: "Monthly" },
+  { key: "yearly", label: "Yearly" },
+];
+
+type DailyReport = {
   date: string;
   attendance: { summary: Record<string, number>; total: number; records: Array<Record<string, unknown>> };
   plans: Array<Record<string, unknown> & { tasks?: Array<Record<string, unknown>> }>;
@@ -13,48 +22,69 @@ type Report = {
   outstandingIssues: { followUps: Array<Record<string, unknown>>; pendingReports: Array<Record<string, unknown>>; openDefects: Array<Record<string, unknown>> };
 };
 
+type PeriodReport = {
+  period: Period;
+  anchorDate: string;
+  startDate: string;
+  endDate: string;
+  attendance: {
+    total: number;
+    byStatus: Record<string, number>;
+    byDate: Array<Record<string, number> & { day: string }>;
+  };
+  operations: {
+    plans: number;
+    planByStatus: Record<string, number>;
+    tasks: number;
+    taskByStatus: Record<string, number>;
+    siteReports: number;
+    siteReportByStatus: Record<string, number>;
+    averageProgress: number | null;
+    progressRecords: number;
+    progressQuantity: number;
+    inspections: number;
+    incidents: number;
+    incidentBySeverity: Record<string, number>;
+    materialMovements: number;
+  };
+  materials: Array<{ movement: string; count: number; quantity: number }>;
+  outstanding: { followUps: number; pendingReports: number; openDefects: number };
+  timeline: Array<{
+    key: string;
+    attendance: number;
+    siteReports: number;
+    materialMovements: number;
+    incidents: number;
+  }>;
+};
+
+type LoadedReport<T> = { key: string; data: T } | { key: string; error: string };
+
 function val(v: unknown) { return v === null || v === undefined || v === "" ? "—" : String(v); }
+function breakdown(record: Record<string, number>) {
+  const entries = Object.entries(record);
+  return entries.length ? entries.map(([key, value]) => `${key}: ${value}`).join(" · ") : "None";
+}
 
-export default function DailySummaryPage() {
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
-  const [report, setReport] = useState<Report | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  async function load(d: string, isCurrent: () => boolean) {
-    setLoading(true); setError(null);
-    try {
-      const result = await fetchJson<Report>(`/api/reports/daily-operations?date=${encodeURIComponent(d)}`);
-      if (isCurrent()) setReport(result);
-    } catch (e) {
-      if (!isCurrent()) return;
-      setError(e instanceof Error ? e.message : "Report could not be loaded.");
-      setReport(null);
-    } finally {
-      if (isCurrent()) setLoading(false);
-    }
-  }
+function DailyDetail({ date }: { date: string }) {
+  const [state, setState] = useState<LoadedReport<DailyReport> | null>(null);
 
   useEffect(() => {
     let active = true;
-    void Promise.resolve().then(() => load(date, () => active));
+    void fetchJson<DailyReport>(`/api/reports/daily-operations?date=${encodeURIComponent(date)}`)
+      .then((data) => { if (active) setState({ key: date, data }); })
+      .catch((e: unknown) => {
+        if (active) setState({ key: date, error: e instanceof Error ? e.message : "Report could not be loaded." });
+      });
     return () => { active = false; };
   }, [date]);
 
-  return (
-    <main className="management-main">
-      <section className="management-heading">
-        <div>
-          <div className="eyebrow">DAILY OPERATIONS</div>
-          <h1>Daily operations report</h1>
-          <p className="page-subtitle">Attendance, progress, materials, safety, and outstanding issues for the selected day.</p>
-        </div>
-        <label style={{ display: "grid", gap: 6 }}>
-          <span>Date</span>
-          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-        </label>
-      </section>
+  const loading = state?.key !== date;
+  const report = state && "data" in state ? state.data : null;
+  const error = state && "error" in state ? state.error : null;
 
+  return (
+    <>
       {error && <div className="management-message error-message" role="alert">{error}</div>}
       {loading && <div className="management-card"><p>Generating daily report…</p></div>}
 
@@ -74,7 +104,7 @@ export default function DailySummaryPage() {
           </section>
 
           <section className="management-card">
-            <div className="management-card-heading"><h2>Daily plans & tasks</h2><p>{report.plans.length} plans</p></div>
+            <div className="management-card-heading"><h2>Daily plans &amp; tasks</h2><p>{report.plans.length} plans</p></div>
             {report.plans.length === 0 && <p>No daily plans for this date.</p>}
             {report.plans.map((p, i) => (
               <div key={i} style={{ marginBottom: 12 }}>
@@ -85,7 +115,7 @@ export default function DailySummaryPage() {
           </section>
 
           <section className="management-card">
-            <div className="management-card-heading"><h2>Progress & site reports</h2><p>{report.progress.siteReports.length} site reports, {report.progress.progressRecords.length} progress records</p></div>
+            <div className="management-card-heading"><h2>Progress &amp; site reports</h2><p>{report.progress.siteReports.length} site reports, {report.progress.progressRecords.length} progress records</p></div>
             <div className="management-table-wrap">
               <table className="management-table"><thead><tr><th>Report</th><th>Supervisor</th><th>Project</th><th>Progress %</th><th>Status</th><th>Completed work</th><th>Challenges</th><th>Delays</th></tr></thead>
                 <tbody>
@@ -142,7 +172,7 @@ export default function DailySummaryPage() {
           </section>
 
           <section className="management-card">
-            <div className="management-card-heading"><h2>Outstanding issues & follow-up</h2><p>Open follow-ups, pending reports, and open quality defects.</p></div>
+            <div className="management-card-heading"><h2>Outstanding issues &amp; follow-up</h2><p>Open follow-ups, pending reports, and open quality defects.</p></div>
             <h3 style={{ margin: "8px 0" }}>Follow-up actions (open/in progress)</h3>
             <div className="management-table-wrap">
               <table className="management-table"><thead><tr><th>Report</th><th>Issue</th><th>Action</th><th>Assigned to</th><th>Due</th><th>Status</th></tr></thead>
@@ -173,6 +203,155 @@ export default function DailySummaryPage() {
           </section>
         </>
       )}
+    </>
+  );
+}
+
+function PeriodSummary({ period, date }: { period: Period; date: string }) {
+  const [state, setState] = useState<LoadedReport<PeriodReport> | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    const key = `${period}|${date}`;
+    void fetchJson<PeriodReport>(`/api/reports/period?period=${period}&date=${encodeURIComponent(date)}`)
+      .then((data) => { if (active) setState({ key, data }); })
+      .catch((e: unknown) => {
+        if (active) setState({ key, error: e instanceof Error ? e.message : "Report could not be loaded." });
+      });
+    return () => { active = false; };
+  }, [period, date]);
+
+  const loading = state?.key !== `${period}|${date}`;
+  const report = state && "data" in state ? state.data : null;
+  const error = state && "error" in state ? state.error : null;
+  const label = PERIODS.find((item) => item.key === period)?.label ?? period;
+
+  return (
+    <>
+      {error && <div className="management-message error-message" role="alert">{error}</div>}
+      {loading && <div className="management-card"><p>Generating {label.toLowerCase()} report…</p></div>}
+
+      {report && !loading && (
+        <>
+          <section className="management-card">
+            <div className="management-card-heading">
+              <h2>{label} summary</h2>
+              <p>{report.startDate} to {report.endDate} (end date exclusive) · anchored on {report.anchorDate}</p>
+            </div>
+            <div className="metrics-grid">
+              <div className="metric-card metric-card-accent"><div className="metric-caption">ATTENDANCE</div><div className="metric-value">{report.attendance.total}</div><div className="metric-label">entries recorded</div></div>
+              <div className="metric-card metric-card-accent"><div className="metric-caption">SITE REPORTS</div><div className="metric-value">{report.operations.siteReports}</div><div className="metric-label">submitted reports</div></div>
+              <div className="metric-card metric-card-accent"><div className="metric-caption">AVG PROGRESS</div><div className="metric-value">{report.operations.averageProgress === null ? "—" : `${report.operations.averageProgress}%`}</div><div className="metric-label">across site reports</div></div>
+              <div className="metric-card metric-card-accent"><div className="metric-caption">MATERIALS</div><div className="metric-value">{report.operations.materialMovements}</div><div className="metric-label">stock movements</div></div>
+              <div className="metric-card"><div className="metric-caption">PLANS &amp; TASKS</div><div className="metric-value">{report.operations.plans} / {report.operations.tasks}</div><div className="metric-label">plans / tasks</div></div>
+              <div className="metric-card"><div className="metric-caption">PROGRESS RECORDS</div><div className="metric-value">{report.operations.progressRecords}</div><div className="metric-label">total quantity {report.operations.progressQuantity}</div></div>
+              <div className="metric-card"><div className="metric-caption">SAFETY</div><div className="metric-value">{report.operations.inspections} / {report.operations.incidents}</div><div className="metric-label">inspections / incidents</div></div>
+              <div className="metric-card metric-card-alert"><div className="metric-caption">OUTSTANDING</div><div className="metric-value">{report.outstanding.followUps + report.outstanding.pendingReports + report.outstanding.openDefects}</div><div className="metric-label">open items</div></div>
+            </div>
+          </section>
+
+          <section className="management-card">
+            <div className="management-card-heading"><h2>Activity trend</h2><p>Grouped by {period === "yearly" ? "month" : "day"} across the selected range.</p></div>
+            <div className="management-table-wrap">
+              <table className="management-table">
+                <thead><tr><th scope="col">Period</th><th scope="col">Attendance</th><th scope="col">Site reports</th><th scope="col">Material movements</th><th scope="col">Incidents</th></tr></thead>
+                <tbody>
+                  {report.timeline.map((row) => <tr key={row.key}><td>{row.key}</td><td>{row.attendance}</td><td>{row.siteReports}</td><td>{row.materialMovements}</td><td>{row.incidents}</td></tr>)}
+                  {report.timeline.length === 0 && <tr><td className="management-empty" colSpan={5}>No activity in this period.</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section className="management-card">
+            <div className="management-card-heading"><h2>Attendance breakdown</h2><p>{report.attendance.total} entries in total.</p></div>
+            <p><strong>By status:</strong> {breakdown(report.attendance.byStatus)}</p>
+            <div className="management-table-wrap">
+              <table className="management-table">
+                <thead><tr><th scope="col">{period === "yearly" ? "Month" : "Date"}</th><th scope="col">Entries</th><th scope="col">Status breakdown</th></tr></thead>
+                <tbody>
+                  {report.attendance.byDate.map((row) => {
+                    const { day, total, ...statuses } = row;
+                    return <tr key={day}><td>{day}</td><td>{total}</td><td>{breakdown(statuses as Record<string, number>)}</td></tr>;
+                  })}
+                  {report.attendance.byDate.length === 0 && <tr><td className="management-empty" colSpan={3}>No attendance recorded in this period.</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section className="management-card">
+            <div className="management-card-heading"><h2>Operations breakdown</h2><p>Status totals for plans, tasks, site reports and incidents.</p></div>
+            <div className="management-table-wrap">
+              <table className="management-table">
+                <thead><tr><th scope="col">Area</th><th scope="col">Total</th><th scope="col">Status breakdown</th></tr></thead>
+                <tbody>
+                  <tr><td>Daily plans</td><td>{report.operations.plans}</td><td>{breakdown(report.operations.planByStatus)}</td></tr>
+                  <tr><td>Plan tasks</td><td>{report.operations.tasks}</td><td>{breakdown(report.operations.taskByStatus)}</td></tr>
+                  <tr><td>Site reports</td><td>{report.operations.siteReports}</td><td>{breakdown(report.operations.siteReportByStatus)}</td></tr>
+                  <tr><td>Safety incidents</td><td>{report.operations.incidents}</td><td>{breakdown(report.operations.incidentBySeverity)}</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section className="management-card">
+            <div className="management-card-heading"><h2>Material movements</h2><p>{report.operations.materialMovements} movements in the selected range.</p></div>
+            <div className="management-table-wrap">
+              <table className="management-table">
+                <thead><tr><th scope="col">Movement</th><th scope="col">Transactions</th><th scope="col">Quantity</th></tr></thead>
+                <tbody>
+                  {report.materials.map((row) => <tr key={row.movement}><td>{row.movement}</td><td>{row.count}</td><td>{row.quantity}</td></tr>)}
+                  {report.materials.length === 0 && <tr><td className="management-empty" colSpan={3}>No material movements in this period.</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section className="management-card">
+            <div className="management-card-heading"><h2>Current outstanding items</h2><p>Open items as of now, independent of the selected range.</p></div>
+            <p><strong>Follow-ups:</strong> {report.outstanding.followUps} · <strong>Pending site reports:</strong> {report.outstanding.pendingReports} · <strong>Open quality defects:</strong> {report.outstanding.openDefects}</p>
+          </section>
+        </>
+      )}
+    </>
+  );
+}
+
+export default function SummaryPage() {
+  const [period, setPeriod] = useState<Period>("daily");
+  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+
+  return (
+    <main className="management-main">
+      <section className="management-heading">
+        <div>
+          <div className="eyebrow">OPERATIONS REPORTS</div>
+          <h1>Operations reports</h1>
+          <p className="page-subtitle">Daily detail or aggregated weekly, monthly and yearly summaries.</p>
+        </div>
+        <label style={{ display: "grid", gap: 6 }}>
+          <span>Date</span>
+          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+        </label>
+      </section>
+
+      <div className="period-tabs" role="tablist" aria-label="Report period">
+        {PERIODS.map((item) => (
+          <button
+            key={item.key}
+            className={`period-tab${period === item.key ? " active" : ""}`}
+            type="button"
+            role="tab"
+            aria-selected={period === item.key}
+            onClick={() => setPeriod(item.key)}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+
+      {period === "daily" ? <DailyDetail date={date} /> : <PeriodSummary period={period} date={date} />}
     </main>
   );
 }

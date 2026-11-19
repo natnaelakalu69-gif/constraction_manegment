@@ -423,7 +423,7 @@ export default function OperationsDashboard() {
               </Link>
               <Link className="module-card" href="/daily-summary">
                 <span className="module-icon module-teal"><Icon name="report" /></span>
-                <div><strong>Daily summary</strong><p>Attendance, progress, materials, safety and open issues.</p></div>
+                <div><strong>Operations reports</strong><p>Daily detail plus weekly, monthly and yearly summaries.</p></div>
                 <span className="module-status">Open</span>
               </Link>
               <Link className="module-card" href="/roles">
