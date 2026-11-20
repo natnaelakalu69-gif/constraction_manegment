@@ -31,7 +31,7 @@ export async function POST(req: Request) {
   if (!isValidBusinessCode(workerCode)) {
     return NextResponse.json({ error: businessCodeError("Worker code") }, { status: 400 });
   }
-  if (phone && !isValidPhone(phone)) {
+  if (!isValidPhone(phone)) {
     return NextResponse.json({ error: phoneError("Phone number") }, { status: 400 });
   }
 

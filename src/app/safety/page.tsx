@@ -28,7 +28,7 @@ const sections: ModuleSection[] = [
     description: "Record and review incidents with severity and status.",
     endpoint: "/api/modules/safety-incidents",
     fields: [
-      { name: "incidentNumber", label: "Incident number", required: true },
+      { name: "incidentNumber", label: "Incident number", required: true, format: "businessCode" },
       { name: "incidentType", label: "Incident type", required: true },
       { name: "occurredAt", label: "Occurred at", type: "datetime-local", required: true },
       { name: "severity", label: "Severity", type: "select", options: ["low", "medium", "high", "critical"] },

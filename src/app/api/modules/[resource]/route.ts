@@ -160,7 +160,7 @@ const resources: Record<string, Resource> = {
     list: (companyId) => db.select().from(materials).where(eq(materials.companyId, companyId)).orderBy(desc(materials.id)),
     create: (b, companyId) => db.insert(materials).values({
       companyId,
-      sku: requiredText(b, "sku"),
+      sku: businessCode(b, "sku", "SKU"),
       name: requiredText(b, "name"),
       unit: requiredText(b, "unit"),
       minimumStock: numeric(b, "minimumStock", "0")!,
@@ -181,7 +181,7 @@ const resources: Record<string, Resource> = {
     list: (companyId) => db.select().from(equipment).where(eq(equipment.companyId, companyId)).orderBy(desc(equipment.id)),
     create: (b, companyId) => db.insert(equipment).values({
       companyId,
-      equipmentNumber: requiredText(b, "equipmentNumber"),
+      equipmentNumber: businessCode(b, "equipmentNumber", "Equipment number"),
       name: requiredText(b, "name"),
       equipmentType: text(b, "equipmentType"),
     }).returning().then(([row]) => row),
@@ -201,7 +201,7 @@ const resources: Record<string, Resource> = {
     list: (companyId) => db.select().from(safetyIncidents).where(eq(safetyIncidents.companyId, companyId)).orderBy(desc(safetyIncidents.id)),
     create: (b, companyId) => db.insert(safetyIncidents).values({
       companyId,
-      incidentNumber: requiredText(b, "incidentNumber"),
+      incidentNumber: businessCode(b, "incidentNumber", "Incident number"),
       incidentType: requiredText(b, "incidentType"),
       occurredAt: timestamp(b, "occurredAt"),
       severity: oneOf(b, "severity", ["low", "medium", "high", "critical"] as const, "medium"),

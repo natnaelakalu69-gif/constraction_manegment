@@ -11,7 +11,7 @@ const sections: ModuleSection[] = [
     description: "Maintain the material catalogue and minimum stock levels.",
     endpoint: "/api/modules/materials",
     fields: [
-      { name: "sku", label: "SKU", required: true },
+      { name: "sku", label: "SKU", required: true, format: "businessCode" },
       { name: "name", label: "Material name", required: true },
       { name: "unit", label: "Unit", required: true, placeholder: "bag, kg, pcs" },
       { name: "minimumStock", label: "Minimum stock", type: "number" },
@@ -45,7 +45,7 @@ const sections: ModuleSection[] = [
     description: "Keep a register of equipment available across sites.",
     endpoint: "/api/modules/equipment",
     fields: [
-      { name: "equipmentNumber", label: "Equipment number", required: true },
+      { name: "equipmentNumber", label: "Equipment number", required: true, format: "businessCode" },
       { name: "name", label: "Equipment name", required: true },
       { name: "equipmentType", label: "Type" },
     ],

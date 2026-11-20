@@ -174,7 +174,7 @@ function ModuleSectionCard({ section }: { section: ModuleSection }) {
         setError(businessCodeError(field.label));
         return;
       }
-      if (field.format === "phone" && value && !isValidPhone(value)) {
+      if (field.format === "phone" && !isValidPhone(value)) {
         setError(phoneError(field.label));
         return;
       }

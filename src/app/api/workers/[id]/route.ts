@@ -25,7 +25,7 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
   if (!fullName || !position) {
     return NextResponse.json({ error: "fullName and position are required." }, { status: 400 });
   }
-  if (phone && !isValidPhone(phone)) {
+  if (!isValidPhone(phone)) {
     return NextResponse.json({ error: phoneError("Phone number") }, { status: 400 });
   }
 

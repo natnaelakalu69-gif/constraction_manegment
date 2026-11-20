@@ -134,7 +134,7 @@ export default function WorkersPage() {
       return;
     }
     const phone = form.phone.trim();
-    if (phone && !isValidPhone(phone)) {
+    if (!isValidPhone(phone)) {
       setError(phoneError("Phone number"));
       return;
     }
@@ -190,8 +190,7 @@ export default function WorkersPage() {
         <div className="management-card-heading">
           <h2>{editingId !== null ? "Edit worker" : "Add a worker"}</h2>
           <p>
-            Worker code ({CODE_MIN_DIGITS}+ digits), name, and position are required.
-            Phone number, when provided, must have at least {PHONE_MIN_DIGITS} digits.
+            Worker code ({CODE_MIN_DIGITS}+ digits), name, position, and phone number ({PHONE_MIN_DIGITS}+ digits) are required.
           </p>
         </div>
         <form className="management-form" onSubmit={addWorker}>
@@ -230,6 +229,7 @@ export default function WorkersPage() {
               pattern="[0-9 +().-]+"
               title={phoneError("Phone number")}
               inputMode="tel"
+              required
             />
           </label>
           <label>

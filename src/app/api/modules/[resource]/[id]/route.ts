@@ -65,7 +65,7 @@ const EDITABLE: Record<string, Record<string, FieldSpec>> = {
     incurredOn: { type: "date", required: true }, reference: { type: "text" },
   },
   materials: {
-    sku: { type: "text", required: true }, name: { type: "text", required: true },
+    sku: { type: "text", required: true, format: "businessCode" }, name: { type: "text", required: true },
     unit: { type: "text", required: true }, minimumStock: { type: "number" },
   },
   "inventory-transactions": {
@@ -74,7 +74,7 @@ const EDITABLE: Record<string, Record<string, FieldSpec>> = {
     occurredAt: { type: "datetime" }, notes: { type: "text" },
   },
   equipment: {
-    equipmentNumber: { type: "text", required: true }, name: { type: "text", required: true },
+    equipmentNumber: { type: "text", required: true, format: "businessCode" }, name: { type: "text", required: true },
     equipmentType: { type: "text" },
   },
   "equipment-usage": {
@@ -82,7 +82,7 @@ const EDITABLE: Record<string, Record<string, FieldSpec>> = {
     workingHours: { type: "number" }, fuelLiters: { type: "number" }, notes: { type: "text" },
   },
   "safety-incidents": {
-    incidentNumber: { type: "text", required: true }, incidentType: { type: "text", required: true },
+    incidentNumber: { type: "text", required: true, format: "businessCode" }, incidentType: { type: "text", required: true },
     occurredAt: { type: "datetime", required: true },
     severity: { type: "enum", allowed: ["low", "medium", "high", "critical"] },
     description: { type: "text", required: true }, status: { type: "enum", allowed: APPROVAL },
