@@ -3,6 +3,7 @@ import { desc } from "drizzle-orm";
 import { db } from "@/db";
 import { sites } from "@/db/schema";
 import { isUniqueConstraintViolation } from "@/lib/postgres-errors";
+import { businessCodeError, isValidBusinessCode } from "@/lib/validation";
 
 export async function GET() {
   return NextResponse.json(await db.select().from(sites).orderBy(desc(sites.id)));
@@ -25,6 +26,9 @@ export async function POST(req: Request) {
   const location = typeof fields.location === "string" ? fields.location.trim() : "";
   if (!siteCode || !siteName || !location) {
     return NextResponse.json({ error: "siteCode, siteName and location are required." }, { status: 400 });
+  }
+  if (!isValidBusinessCode(siteCode)) {
+    return NextResponse.json({ error: businessCodeError("Site code") }, { status: 400 });
   }
 
   try {

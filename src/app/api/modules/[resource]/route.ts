@@ -8,6 +8,7 @@ import {
 } from "@/db/schema/enterprise";
 import { isUniqueConstraintViolation } from "@/lib/postgres-errors";
 import { getWorkspaceCompanyId } from "@/lib/workspace";
+import { businessCodeError, isValidBusinessCode } from "@/lib/validation";
 
 class BadRequest extends Error {}
 
@@ -21,6 +22,12 @@ function text(b: Body, key: string): string | null {
 function requiredText(b: Body, key: string): string {
   const value = text(b, key);
   if (!value) throw new BadRequest(`${key} is required.`);
+  return value;
+}
+
+function businessCode(b: Body, key: string, label: string): string {
+  const value = requiredText(b, key);
+  if (!isValidBusinessCode(value)) throw new BadRequest(businessCodeError(label));
   return value;
 }
 
@@ -94,7 +101,7 @@ const resources: Record<string, Resource> = {
     list: (companyId) => db.select().from(projects).where(eq(projects.companyId, companyId)).orderBy(desc(projects.id)),
     create: (b, companyId) => db.insert(projects).values({
       companyId,
-      code: requiredText(b, "code"),
+      code: businessCode(b, "code", "Project code"),
       name: requiredText(b, "name"),
       clientName: text(b, "clientName"),
       location: text(b, "location"),
@@ -109,7 +116,7 @@ const resources: Record<string, Resource> = {
     create: (b, companyId) => db.insert(workPackages).values({
       companyId,
       projectId: int(b, "projectId")!,
-      code: requiredText(b, "code"),
+      code: businessCode(b, "code", "Package code"),
       name: requiredText(b, "name"),
       plannedQuantity: numeric(b, "plannedQuantity", "0")!,
       unit: requiredText(b, "unit"),
@@ -132,7 +139,7 @@ const resources: Record<string, Resource> = {
     create: (b, companyId) => db.insert(budgets).values({
       companyId,
       projectId: int(b, "projectId")!,
-      costCode: requiredText(b, "costCode"),
+      costCode: businessCode(b, "costCode", "Cost code"),
       description: requiredText(b, "description"),
       plannedAmount: requiredNumber(b, "plannedAmount"),
     }).returning().then(([row]) => row),

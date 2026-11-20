@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import { fetchJson } from "@/lib/client-api";
+import { CODE_MIN_DIGITS, businessCodeError, isValidBusinessCode } from "@/lib/validation";
 
 type Site = {
   id: number;
@@ -111,6 +112,10 @@ export default function SitesPage() {
       setError("Site code, site name, and location are required.");
       return;
     }
+    if (!editing && !isValidBusinessCode(siteCode)) {
+      setError(businessCodeError("Site code"));
+      return;
+    }
     if (!editing && sites.some((site) => site.siteCode.toLowerCase() === siteCode.toLowerCase())) {
       setError(`Site code "${siteCode}" already exists.`);
       return;
@@ -161,12 +166,21 @@ export default function SitesPage() {
       <section className="management-card">
         <div className="management-card-heading">
           <h2>{editingId !== null ? "Edit site" : "Add a site"}</h2>
-          <p>Site code, site name, and location are required.</p>
+          <p>Site code ({CODE_MIN_DIGITS}+ digits), site name, and location are required.</p>
         </div>
         <form className="management-form" onSubmit={addSite}>
           <label>
             Site code
-            <input value={form.siteCode} disabled={editingId !== null} onChange={(event) => setForm({ ...form, siteCode: event.target.value })} required />
+            <input
+              value={form.siteCode}
+              disabled={editingId !== null}
+              onChange={(event) => setForm({ ...form, siteCode: event.target.value })}
+              minLength={CODE_MIN_DIGITS}
+              pattern={`[0-9]{${CODE_MIN_DIGITS},}`}
+              title={businessCodeError("Site code")}
+              inputMode="numeric"
+              required
+            />
           </label>
           <label>
             Site name

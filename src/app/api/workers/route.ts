@@ -3,6 +3,7 @@ import { desc } from "drizzle-orm";
 import { db } from "@/db";
 import { workers } from "@/db/schema";
 import { isUniqueConstraintViolation } from "@/lib/postgres-errors";
+import { businessCodeError, isValidBusinessCode, isValidPhone, phoneError } from "@/lib/validation";
 
 export async function GET() {
   return NextResponse.json(await db.select().from(workers).orderBy(desc(workers.id)));
@@ -23,15 +24,22 @@ export async function POST(req: Request) {
   const workerCode = typeof fields.workerCode === "string" ? fields.workerCode.trim() : "";
   const fullName = typeof fields.fullName === "string" ? fields.fullName.trim() : "";
   const position = typeof fields.position === "string" ? fields.position.trim() : "";
+  const phone = typeof fields.phone === "string" ? fields.phone.trim() : "";
   if (!workerCode || !fullName || !position) {
     return NextResponse.json({ error: "workerCode, fullName and position are required." }, { status: 400 });
+  }
+  if (!isValidBusinessCode(workerCode)) {
+    return NextResponse.json({ error: businessCodeError("Worker code") }, { status: 400 });
+  }
+  if (phone && !isValidPhone(phone)) {
+    return NextResponse.json({ error: phoneError("Phone number") }, { status: 400 });
   }
 
   try {
     const [worker] = await db.insert(workers).values({
       workerCode,
       fullName,
-      phone: typeof fields.phone === "string" && fields.phone.trim() ? fields.phone.trim() : null,
+      phone: phone || null,
       position,
       department: typeof fields.department === "string" && fields.department.trim() ? fields.department.trim() : null,
       hireDate: typeof fields.hireDate === "string" && fields.hireDate ? fields.hireDate : null,

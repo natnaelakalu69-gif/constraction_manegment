@@ -1,7 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState, type FormEvent, type InputHTMLAttributes } from "react";
 import { fetchJson } from "@/lib/client-api";
+import {
+  CODE_MIN_DIGITS,
+  PHONE_MIN_DIGITS,
+  businessCodeError,
+  isValidBusinessCode,
+  isValidPhone,
+  phoneError,
+} from "@/lib/validation";
 
 export type ModuleField = {
   name: string;
@@ -12,7 +20,30 @@ export type ModuleField = {
   optionLabel?: string;
   required?: boolean;
   placeholder?: string;
+  format?: "businessCode" | "phone";
 };
+
+type FieldInputAttributes = Pick<InputHTMLAttributes<HTMLInputElement>, "minLength" | "pattern" | "title" | "inputMode">;
+
+function fieldInputAttributes(field: ModuleField): FieldInputAttributes {
+  if (field.format === "businessCode") {
+    return {
+      minLength: CODE_MIN_DIGITS,
+      pattern: `[0-9]{${CODE_MIN_DIGITS},}`,
+      title: businessCodeError(field.label),
+      inputMode: "numeric",
+    };
+  }
+  if (field.format === "phone") {
+    return {
+      minLength: PHONE_MIN_DIGITS,
+      pattern: "[0-9 +().-]+",
+      title: phoneError(field.label),
+      inputMode: "tel",
+    };
+  }
+  return {};
+}
 
 export type ModuleSection = {
   key: string;
@@ -136,6 +167,18 @@ function ModuleSectionCard({ section }: { section: ModuleSection }) {
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const editing = editingId !== null;
+    for (const field of section.fields) {
+      const value = (form[field.name] ?? "").trim();
+      if (!value && !field.required) continue;
+      if (field.format === "businessCode" && !isValidBusinessCode(value)) {
+        setError(businessCodeError(field.label));
+        return;
+      }
+      if (field.format === "phone" && value && !isValidPhone(value)) {
+        setError(phoneError(field.label));
+        return;
+      }
+    }
     setSaving(true);
     setError(null);
     setSuccess(null);
@@ -191,6 +234,7 @@ function ModuleSectionCard({ section }: { section: ModuleSection }) {
                 value={form[field.name] ?? ""}
                 onChange={(event) => setForm({ ...form, [field.name]: event.target.value })}
                 required={field.required}
+                {...fieldInputAttributes(field)}
               />
             )}
           </label>

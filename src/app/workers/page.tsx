@@ -2,6 +2,14 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import { fetchJson } from "@/lib/client-api";
+import {
+  CODE_MIN_DIGITS,
+  PHONE_MIN_DIGITS,
+  businessCodeError,
+  isValidBusinessCode,
+  isValidPhone,
+  phoneError,
+} from "@/lib/validation";
 
 type Worker = {
   id: number;
@@ -121,6 +129,15 @@ export default function WorkersPage() {
       setError("Worker code, full name, and position are required.");
       return;
     }
+    if (!editing && !isValidBusinessCode(workerCode)) {
+      setError(businessCodeError("Worker code"));
+      return;
+    }
+    const phone = form.phone.trim();
+    if (phone && !isValidPhone(phone)) {
+      setError(phoneError("Phone number"));
+      return;
+    }
     if (!editing && workers.some((worker) => worker.workerCode.toLowerCase() === workerCode.toLowerCase())) {
       setError(`Worker code "${workerCode}" already exists.`);
       return;
@@ -139,7 +156,7 @@ export default function WorkersPage() {
           fullName,
           position,
           department: form.department.trim(),
-          phone: form.phone.trim(),
+          phone,
         }),
       });
       setForm(emptyForm);
@@ -172,12 +189,24 @@ export default function WorkersPage() {
       <section className="management-card">
         <div className="management-card-heading">
           <h2>{editingId !== null ? "Edit worker" : "Add a worker"}</h2>
-          <p>Worker code, name, and position are required.</p>
+          <p>
+            Worker code ({CODE_MIN_DIGITS}+ digits), name, and position are required.
+            Phone number, when provided, must have at least {PHONE_MIN_DIGITS} digits.
+          </p>
         </div>
         <form className="management-form" onSubmit={addWorker}>
           <label>
             Worker code
-            <input value={form.workerCode} disabled={editingId !== null} onChange={(event) => setForm({ ...form, workerCode: event.target.value })} required />
+            <input
+              value={form.workerCode}
+              disabled={editingId !== null}
+              onChange={(event) => setForm({ ...form, workerCode: event.target.value })}
+              minLength={CODE_MIN_DIGITS}
+              pattern={`[0-9]{${CODE_MIN_DIGITS},}`}
+              title={businessCodeError("Worker code")}
+              inputMode="numeric"
+              required
+            />
           </label>
           <label>
             Full name
@@ -193,7 +222,15 @@ export default function WorkersPage() {
           </label>
           <label>
             Phone
-            <input type="tel" value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} />
+            <input
+              type="tel"
+              value={form.phone}
+              onChange={(event) => setForm({ ...form, phone: event.target.value })}
+              minLength={PHONE_MIN_DIGITS}
+              pattern="[0-9 +().-]+"
+              title={phoneError("Phone number")}
+              inputMode="tel"
+            />
           </label>
           <label>
             Status

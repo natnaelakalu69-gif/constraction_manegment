@@ -7,7 +7,7 @@ const sections: ModuleSection[] = [
     description: "Track project codes, statuses, dates and budgets.",
     endpoint: "/api/modules/projects",
     fields: [
-      { name: "code", label: "Project code", required: true },
+      { name: "code", label: "Project code", required: true, format: "businessCode" },
       { name: "name", label: "Project name", required: true },
       { name: "clientName", label: "Client" },
       { name: "location", label: "Location" },
@@ -29,7 +29,7 @@ const sections: ModuleSection[] = [
     endpoint: "/api/modules/work-packages",
     fields: [
       { name: "projectId", label: "Project", type: "select", optionsFrom: "/api/modules/projects", optionLabel: "name", required: true },
-      { name: "code", label: "Package code", required: true },
+      { name: "code", label: "Package code", required: true, format: "businessCode" },
       { name: "name", label: "Package name", required: true },
       { name: "unit", label: "Unit", required: true, placeholder: "m3, hrs, pcs" },
       { name: "plannedQuantity", label: "Planned quantity", type: "number" },
@@ -65,7 +65,7 @@ const sections: ModuleSection[] = [
     endpoint: "/api/modules/budgets",
     fields: [
       { name: "projectId", label: "Project", type: "select", optionsFrom: "/api/modules/projects", optionLabel: "name", required: true },
-      { name: "costCode", label: "Cost code", required: true },
+      { name: "costCode", label: "Cost code", required: true, format: "businessCode" },
       { name: "description", label: "Description", required: true },
       { name: "plannedAmount", label: "Planned amount", type: "number", required: true },
     ],

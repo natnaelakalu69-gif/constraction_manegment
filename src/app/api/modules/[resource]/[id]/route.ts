@@ -8,12 +8,13 @@ import {
 } from "@/db/schema/enterprise";
 import { isForeignKeyViolation, isUniqueConstraintViolation } from "@/lib/postgres-errors";
 import { getWorkspaceCompanyId } from "@/lib/workspace";
+import { businessCodeError, isValidBusinessCode, isValidPhone, phoneError } from "@/lib/validation";
 
 class BadRequest extends Error {}
 
 type Body = Record<string, unknown>;
 type FieldType = "text" | "int" | "number" | "date" | "datetime" | "enum";
-type FieldSpec = { type: FieldType; allowed?: readonly string[]; required?: boolean };
+type FieldSpec = { type: FieldType; allowed?: readonly string[]; required?: boolean; format?: "businessCode" | "phone" };
 
 const APPROVAL = ["draft", "submitted", "approved", "rejected", "cancelled"] as const;
 const INVENTORY_MOVEMENTS = ["receipt", "issue", "return", "transfer_in", "transfer_out", "adjustment", "wastage"] as const;
@@ -40,13 +41,13 @@ const TABLES: Record<string, any> = {
 
 const EDITABLE: Record<string, Record<string, FieldSpec>> = {
   projects: {
-    code: { type: "text", required: true }, name: { type: "text", required: true },
+    code: { type: "text", required: true, format: "businessCode" }, name: { type: "text", required: true },
     clientName: { type: "text" }, location: { type: "text" },
     status: { type: "enum", allowed: ["planning", "active", "suspended", "completed", "cancelled"] },
     budget: { type: "number" }, startDate: { type: "date" }, plannedEndDate: { type: "date" },
   },
   "work-packages": {
-    projectId: { type: "int", required: true }, code: { type: "text", required: true },
+    projectId: { type: "int", required: true }, code: { type: "text", required: true, format: "businessCode" },
     name: { type: "text", required: true }, unit: { type: "text", required: true },
     plannedQuantity: { type: "number" }, plannedStart: { type: "date" }, plannedEnd: { type: "date" },
   },
@@ -55,7 +56,7 @@ const EDITABLE: Record<string, Record<string, FieldSpec>> = {
     quantityCompleted: { type: "number", required: true }, notes: { type: "text" },
   },
   budgets: {
-    projectId: { type: "int", required: true }, costCode: { type: "text", required: true },
+    projectId: { type: "int", required: true }, costCode: { type: "text", required: true, format: "businessCode" },
     description: { type: "text", required: true }, plannedAmount: { type: "number", required: true },
   },
   "project-costs": {
@@ -155,6 +156,8 @@ function coerce(value: unknown, spec: FieldSpec, key: string) {
     return parsed;
   }
   const raw = String(value).trim();
+  if (spec.format === "businessCode" && !isValidBusinessCode(raw)) throw new BadRequest(businessCodeError(key));
+  if (spec.format === "phone" && raw && !isValidPhone(raw)) throw new BadRequest(phoneError(key));
   if (spec.allowed && !spec.allowed.includes(raw)) throw new BadRequest(`${key} must be one of: ${spec.allowed.join(", ")}.`);
   return raw;
 }
