@@ -451,6 +451,16 @@ export default function OperationsDashboard() {
                 <div><strong>Roles &amp; access</strong><p>Roles, permissions and user assignments.</p></div>
                 <span className="module-status">Open</span>
               </Link>
+              <Link className="module-card" href="/procurement">
+                <span className="module-icon module-teal"><Icon name="inventory" /></span>
+                <div><strong>Procurement</strong><p>Purchase requests, suppliers, orders and received materials.</p></div>
+                <span className="module-status">Open</span>
+              </Link>
+              <Link className="module-card" href="/notifications">
+                <span className="module-icon module-orange"><Icon name="attendance" /></span>
+                <div><strong>Notifications</strong><p>Late workers, absences, safety incidents, low stock and task deadlines.</p></div>
+                <span className="module-status">Open</span>
+              </Link>
               <Link className="module-card" href="/settings">
                 <span className="module-icon module-indigo"><Icon name="plan" /></span>
                 <div><strong>Settings</strong><p>Company profile, sites, departments, shifts, attendance rules and wages.</p></div>

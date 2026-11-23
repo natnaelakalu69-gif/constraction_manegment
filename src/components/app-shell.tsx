@@ -3,9 +3,12 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
+import NotificationBell from "@/components/notification-bell";
 
 const navigation = [
   { href: "/", label: "Overview", icon: "O" },
+  { href: "/notifications", label: "Notifications", icon: "N" },
+  { href: "/procurement", label: "Procurement", icon: "C" },
   { href: "/daily-plans", label: "Daily plans", icon: "D" },
   { href: "/tasks", label: "Tasks", icon: "T" },
   { href: "/payroll", label: "Payroll", icon: "W" },
@@ -25,6 +28,8 @@ const navigation = [
 
 const pageTitles: Record<string, string> = {
   "/": "Overview",
+  "/notifications": "Notifications",
+  "/procurement": "Procurement",
   "/daily-plans": "Daily plans",
   "/tasks": "Tasks & teams",
   "/payroll": "Payroll & wages",
@@ -89,7 +94,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
             <span className="status-orb" />
             <span>Core operations</span>
           </div>
-          <p>Tasks, payroll, expenses, attendance, materials, safety, reports and settings are available.</p>
+          <p>Notifications, procurement, tasks, payroll, expenses, attendance, materials, safety and reports are available.</p>
           <Link className="sidebar-cta" href="/attendance">
             <span aria-hidden="true">+</span>
             Record attendance
@@ -106,6 +111,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
             <strong>{title}</strong>
           </div>
           <div className="topbar-right">
+            <NotificationBell />
             <span className="connection-state">Operations workspace</span>
             <span className="topbar-avatar" aria-label="Company workspace">CO</span>
           </div>

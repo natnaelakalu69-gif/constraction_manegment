@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
-  attendanceRules, budgets, dailyFollowUps, dailyPlanTasks, dailyPlans, dailySiteReports, dayLaborWages,
+  appUsers, attendanceRules, budgets, dailyFollowUps, dailyPlanTasks, dailyPlans, dailySiteReports, dayLaborWages,
   departments, equipment, equipmentUsage, inventoryTransactions, materials, progressRecords, projectCosts,
-  projects, qualityDefects, qualityInspections, safetyIncidents, safetyInspections, shifts, sites,
-  teamMembers, wagePayments, wageSettings, workPackages, workTeams, workTasks, workers as workforce,
+  projects, purchaseOrders, purchaseRequests, qualityDefects, qualityInspections, safetyIncidents,
+  safetyInspections, shifts, sites, suppliers, teamMembers, wagePayments, wageSettings, workPackages,
+  workTeams, workTasks, workers as workforce,
 } from "@/db/schema/enterprise";
 import {
   ASSIGNEE_TYPES, BOOLEAN_OPTIONS, EXPENSE_CATEGORIES, EXPENSE_CATEGORY_LABELS, PAYMENT_FREQUENCIES,
@@ -13,7 +14,7 @@ import {
   type ExpenseCategory, type TaskStatus,
 } from "@/lib/domain";
 import { isForeignKeyViolation, isUniqueConstraintViolation } from "@/lib/postgres-errors";
-import { getWorkspaceCompanyId } from "@/lib/workspace";
+import { getWorkspaceCompanyId, getWorkspaceUserId } from "@/lib/workspace";
 import { businessCodeError, isValidBusinessCode } from "@/lib/validation";
 import {
   calculateWageTotals, getWageConfig, paymentStatusFor, resolveOvertimeRate, wageDisplayLabel, wageLabels,
@@ -607,6 +608,112 @@ const resources: Record<string, Resource> = {
       defaultDailyRate: numeric(b, "defaultDailyRate", "0")!,
       isActive: bool(b, "isActive", true),
     }).returning().then(([row]) => row),
+  },
+  suppliers: {
+    list: (companyId) => db.select().from(suppliers)
+      .where(eq(suppliers.companyId, companyId))
+      .orderBy(asc(suppliers.name), asc(suppliers.id)),
+    create: (b, companyId) => db.insert(suppliers).values({
+      companyId,
+      name: requiredText(b, "name"),
+      contactName: text(b, "contactName"),
+      email: text(b, "email"),
+      phone: text(b, "phone"),
+      address: text(b, "address"),
+    }).returning().then(([row]) => row),
+  },
+  "purchase-requests": {
+    list: async (companyId) => {
+      const rows = await db.select().from(purchaseRequests)
+        .leftJoin(appUsers, eq(purchaseRequests.requestedBy, appUsers.id))
+        .leftJoin(projects, eq(purchaseRequests.projectId, projects.id))
+        .where(eq(purchaseRequests.companyId, companyId))
+        .orderBy(desc(purchaseRequests.id));
+      return rows.map(({ purchase_requests: request, app_users: user, projects: project }) => ({
+        ...request,
+        requesterName: user?.fullName ?? `User #${request.requestedBy}`,
+        projectName: project?.name ?? (request.projectId ? `Project #${request.projectId}` : null),
+      }));
+    },
+    create: async (b, companyId) => {
+      const [row] = await db.insert(purchaseRequests).values({
+        companyId,
+        projectId: int(b, "projectId", false),
+        requestedBy: await getWorkspaceUserId(companyId),
+        requestNumber: requiredText(b, "requestNumber"),
+        status: oneOf(b, "status", APPROVAL_STATES, "draft"),
+        requiredBy: date(b, "requiredBy"),
+        justification: text(b, "justification"),
+      }).returning();
+      return row;
+    },
+  },
+  "purchase-orders": {
+    list: async (companyId) => {
+      const rows = await db.select().from(purchaseOrders)
+        .leftJoin(suppliers, eq(purchaseOrders.supplierId, suppliers.id))
+        .leftJoin(projects, eq(purchaseOrders.projectId, projects.id))
+        .where(eq(purchaseOrders.companyId, companyId))
+        .orderBy(desc(purchaseOrders.id));
+      return rows.map(({ purchase_orders: order, suppliers: supplier, projects: project }) => ({
+        ...order,
+        supplierName: supplier?.name ?? `Supplier #${order.supplierId}`,
+        projectName: project?.name ?? (order.projectId ? `Project #${order.projectId}` : null),
+      }));
+    },
+    create: (b, companyId) => db.insert(purchaseOrders).values({
+      companyId,
+      requestId: int(b, "requestId", false),
+      supplierId: int(b, "supplierId")!,
+      projectId: int(b, "projectId", false),
+      orderNumber: requiredText(b, "orderNumber"),
+      status: oneOf(b, "status", APPROVAL_STATES, "draft"),
+      total: numeric(b, "total", "0")!,
+      currency: (text(b, "currency") ?? "ETB").toUpperCase().slice(0, 3),
+      orderedAt: date(b, "orderedAt"),
+    }).returning().then(([row]) => row),
+  },
+  "material-receipts": {
+    list: async (companyId) => {
+      const rows = await db.select().from(inventoryTransactions)
+        .leftJoin(materials, eq(inventoryTransactions.materialId, materials.id))
+        .leftJoin(purchaseOrders, and(
+          eq(inventoryTransactions.referenceId, purchaseOrders.id),
+          eq(inventoryTransactions.referenceType, "purchase_order"),
+        ))
+        .where(and(
+          eq(inventoryTransactions.companyId, companyId),
+          eq(inventoryTransactions.movement, "receipt"),
+        ))
+        .orderBy(desc(inventoryTransactions.occurredAt), desc(inventoryTransactions.id));
+      return rows.map(({ inventory_transactions: receipt, materials: material, purchase_orders: order }) => ({
+        ...receipt,
+        materialName: material?.name ?? `Material #${receipt.materialId}`,
+        materialSku: material?.sku ?? "",
+        orderNumber: order?.orderNumber ?? null,
+        lineTotal: (Number(receipt.quantity ?? 0) * Number(receipt.unitCost ?? 0)).toFixed(2),
+      }));
+    },
+    create: async (b, companyId) => {
+      const quantity = requiredNumber(b, "quantity");
+      if (Number(quantity) <= 0) throw new BadRequest("quantity must be greater than zero.");
+      const referenceId = int(b, "referenceId", false);
+      const [row] = await db.insert(inventoryTransactions).values({
+        companyId,
+        materialId: int(b, "materialId")!,
+        movement: "receipt",
+        quantity,
+        unitCost: numeric(b, "unitCost"),
+        siteId: int(b, "siteId", false),
+        referenceType: referenceId ? "purchase_order" : null,
+        referenceId,
+        occurredAt: typeof b.occurredAt === "string" && b.occurredAt.trim()
+          ? timestamp(b, "occurredAt")
+          : undefined,
+        notes: text(b, "notes"),
+      }).returning();
+      return row;
+    },
   },
 };
 

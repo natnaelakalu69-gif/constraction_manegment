@@ -4,8 +4,9 @@ import { db } from "@/db";
 import {
   attendanceRules, budgets, dailyFollowUps, dailyPlanTasks, dailyPlans, dailySiteReports, dayLaborWages,
   departments, equipment, equipmentUsage, inventoryTransactions, materials, progressRecords, projectCosts,
-  projects, qualityDefects, qualityInspections, safetyIncidents, safetyInspections, shifts, sites, teamMembers,
-  wagePayments, wageSettings, workPackages, workTeams, workTasks, workers as workforce,
+  projects, purchaseOrders, purchaseRequests, qualityDefects, qualityInspections, safetyIncidents,
+  safetyInspections, shifts, sites, suppliers, teamMembers, wagePayments, wageSettings, workPackages,
+  workTeams, workTasks, workers as workforce,
 } from "@/db/schema/enterprise";
 import {
   ASSIGNEE_TYPES, BOOLEAN_OPTIONS, EXPENSE_CATEGORIES, PAYMENT_FREQUENCIES, RECORD_STATUSES,
@@ -61,6 +62,10 @@ const TABLES: Record<string, any> = {
   shifts,
   "attendance-rules": attendanceRules,
   "wage-settings": wageSettings,
+  suppliers,
+  "purchase-requests": purchaseRequests,
+  "purchase-orders": purchaseOrders,
+  "material-receipts": inventoryTransactions,
 };
 
 const EDITABLE: Record<string, Record<string, FieldSpec>> = {
@@ -213,6 +218,26 @@ const EDITABLE: Record<string, Record<string, FieldSpec>> = {
     paymentFrequency: { type: "enum", allowed: PAYMENT_FREQUENCIES },
     defaultDailyRate: { type: "number" }, isActive: { type: "boolean" },
   },
+  suppliers: {
+    name: { type: "text", required: true }, contactName: { type: "text" },
+    email: { type: "text" }, phone: { type: "text" }, address: { type: "text" },
+  },
+  "purchase-requests": {
+    projectId: { type: "int" }, requestNumber: { type: "text", required: true },
+    status: { type: "enum", allowed: APPROVAL }, requiredBy: { type: "date" },
+    justification: { type: "text" },
+  },
+  "purchase-orders": {
+    requestId: { type: "int" }, supplierId: { type: "int", required: true },
+    projectId: { type: "int" }, orderNumber: { type: "text", required: true },
+    status: { type: "enum", allowed: APPROVAL }, total: { type: "number" },
+    currency: { type: "text" }, orderedAt: { type: "date" },
+  },
+  "material-receipts": {
+    materialId: { type: "int", required: true }, quantity: { type: "number", required: true },
+    unitCost: { type: "number" }, siteId: { type: "int" }, referenceId: { type: "int" },
+    occurredAt: { type: "datetime" }, notes: { type: "text" },
+  },
 };
 
 async function syncWagePaymentStatus(wageId: number, companyId: number) {
@@ -306,7 +331,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ resource: str
     for (const [key, spec] of Object.entries(editable)) {
       if (key in b) values[key] = coerce(b[key], spec, key);
     }
-    if (["sites", "shifts", "attendance-rules", "wage-settings"].includes(resource)) {
+    if (["sites", "shifts", "attendance-rules", "wage-settings", "purchase-orders"].includes(resource)) {
       for (const key of Object.keys(values)) {
         if (values[key] === null && KEEP_UNCHANGED_WHEN_EMPTY.has(key)) delete values[key];
       }
@@ -315,8 +340,17 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ resource: str
 
     const companyId = await getWorkspaceCompanyId();
 
-    if (resource === "wage-settings" && "currency" in values) {
+    if ((resource === "wage-settings" || resource === "purchase-orders") && "currency" in values) {
       values.currency = String(values.currency).toUpperCase().slice(0, 3);
+    }
+
+    if (resource === "material-receipts") {
+      if ("quantity" in values && Number(values.quantity) <= 0) {
+        throw new BadRequest("quantity must be greater than zero.");
+      }
+      if ("referenceId" in values) {
+        values.referenceType = values.referenceId ? "purchase_order" : null;
+      }
     }
 
     if (resource === "daily-site-reports" && "status" in values) {
@@ -366,8 +400,12 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ resource: str
     }
 
     if ("updatedAt" in table) values.updatedAt = new Date();
+    let updateWhere = and(eq(table.id, id), eq(table.companyId, companyId));
+    if (resource === "material-receipts") {
+      updateWhere = and(updateWhere, eq(inventoryTransactions.movement, "receipt"));
+    }
     const [row] = await db.update(table).set(values)
-      .where(and(eq(table.id, id), eq(table.companyId, companyId)))
+      .where(updateWhere)
       .returning();
     if (!row) return NextResponse.json({ error: "Record not found." }, { status: 404 });
     if (paymentWageId !== null) await syncWagePaymentStatus(paymentWageId, companyId);
@@ -397,8 +435,12 @@ export async function DELETE(_req: Request, ctx: { params: Promise<{ resource: s
       paymentWageId = existing?.wageId ?? null;
     }
 
+    let deleteWhere = and(eq(table.id, id), eq(table.companyId, companyId));
+    if (resource === "material-receipts") {
+      deleteWhere = and(deleteWhere, eq(inventoryTransactions.movement, "receipt"));
+    }
     const [deleted] = await db.delete(table)
-      .where(and(eq(table.id, id), eq(table.companyId, companyId)))
+      .where(deleteWhere)
       .returning({ id: table.id });
     if (!deleted) return NextResponse.json({ error: "Record not found." }, { status: 404 });
     if (paymentWageId !== null) await syncWagePaymentStatus(paymentWageId, companyId);
