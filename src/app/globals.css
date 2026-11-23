@@ -578,9 +578,13 @@ a.nav-link:hover {
 }
 
 .form-actions {
+  grid-column: 1 / -1;
   display: flex;
-  align-items: flex-end;
+  flex-wrap: wrap;
+  align-items: center;
   justify-content: flex-end;
+  gap: 8px;
+  margin-top: 2px;
 }
 
 .management-message {
