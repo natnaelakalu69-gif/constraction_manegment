@@ -35,3 +35,16 @@ export const EXPENSE_CATEGORY_LABELS: Record<ExpenseCategory, string> = {
 export const PAYMENT_FREQUENCIES = ["daily", "weekly", "biweekly", "monthly"] as const;
 export const BOOLEAN_OPTIONS = ["true", "false"] as const;
 export const RECORD_STATUSES = ["active", "inactive", "archived"] as const;
+
+/** Document register categories and the module resource that owns each one. */
+export const DOCUMENT_CATEGORIES = ["contract", "project", "drawing", "permit", "safety", "delivery"] as const;
+export type DocumentCategory = (typeof DOCUMENT_CATEGORIES)[number];
+
+export const DOCUMENT_RESOURCE_CATEGORIES: Record<string, DocumentCategory> = {
+  "contract-documents": "contract",
+  "project-documents": "project",
+  drawings: "drawing",
+  permits: "permit",
+  "safety-documents": "safety",
+  "delivery-documents": "delivery",
+};

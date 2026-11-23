@@ -3,14 +3,14 @@ import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   attendanceRules, budgets, dailyFollowUps, dailyPlanTasks, dailyPlans, dailySiteReports, dayLaborWages,
-  departments, equipment, equipmentUsage, inventoryTransactions, materials, progressRecords, projectCosts,
+  departments, documents, equipment, equipmentUsage, inventoryTransactions, materials, progressRecords, projectCosts,
   projects, purchaseOrders, purchaseRequests, qualityDefects, qualityInspections, safetyIncidents,
   safetyInspections, shifts, sites, suppliers, teamMembers, wagePayments, wageSettings, workPackages,
   workTeams, workTasks, workers as workforce,
 } from "@/db/schema/enterprise";
 import {
-  ASSIGNEE_TYPES, BOOLEAN_OPTIONS, EXPENSE_CATEGORIES, PAYMENT_FREQUENCIES, RECORD_STATUSES,
-  TASK_PRIORITIES, TASK_STATUSES, WAGE_PAYMENT_STATUSES,
+  ASSIGNEE_TYPES, BOOLEAN_OPTIONS, DOCUMENT_RESOURCE_CATEGORIES, EXPENSE_CATEGORIES, PAYMENT_FREQUENCIES,
+  RECORD_STATUSES, TASK_PRIORITIES, TASK_STATUSES, WAGE_PAYMENT_STATUSES,
 } from "@/lib/domain";
 import { isForeignKeyViolation, isUniqueConstraintViolation } from "@/lib/postgres-errors";
 import { getWorkspaceCompanyId } from "@/lib/workspace";
@@ -31,6 +31,11 @@ const KEEP_UNCHANGED_WHEN_EMPTY = new Set([
   "status", "isActive", "breakMinutes", "lateAfterMinutes", "earlyLeaveAfterMinutes",
   "overtimeStartsAfterMinutes", "standardHoursPerDay", "markAbsentAfterMinutes",
   "currency", "regularHoursPerDay", "overtimeMultiplier", "defaultDailyRate",
+  "mimeType", "sizeBytes", "version",
+]);
+const KEEP_UNCHANGED_RESOURCES = new Set([
+  "sites", "shifts", "attendance-rules", "wage-settings", "purchase-orders",
+  ...Object.keys(DOCUMENT_RESOURCE_CATEGORIES),
 ]);
 
 const TABLES: Record<string, any> = {
@@ -66,6 +71,15 @@ const TABLES: Record<string, any> = {
   "purchase-requests": purchaseRequests,
   "purchase-orders": purchaseOrders,
   "material-receipts": inventoryTransactions,
+};
+
+const DOCUMENT_FIELDS: Record<string, FieldSpec> = {
+  projectId: { type: "int" },
+  title: { type: "text", required: true },
+  storageKey: { type: "text", required: true },
+  mimeType: { type: "text" },
+  sizeBytes: { type: "nonNegativeInt" },
+  version: { type: "nonNegativeInt" },
 };
 
 const EDITABLE: Record<string, Record<string, FieldSpec>> = {
@@ -240,6 +254,11 @@ const EDITABLE: Record<string, Record<string, FieldSpec>> = {
   },
 };
 
+for (const resource of Object.keys(DOCUMENT_RESOURCE_CATEGORIES)) {
+  TABLES[resource] = documents;
+  EDITABLE[resource] = DOCUMENT_FIELDS;
+}
+
 async function syncWagePaymentStatus(wageId: number, companyId: number) {
   const [wage] = await db.select().from(dayLaborWages)
     .where(and(eq(dayLaborWages.id, wageId), eq(dayLaborWages.companyId, companyId)));
@@ -331,7 +350,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ resource: str
     for (const [key, spec] of Object.entries(editable)) {
       if (key in b) values[key] = coerce(b[key], spec, key);
     }
-    if (["sites", "shifts", "attendance-rules", "wage-settings", "purchase-orders"].includes(resource)) {
+    if (KEEP_UNCHANGED_RESOURCES.has(resource)) {
       for (const key of Object.keys(values)) {
         if (values[key] === null && KEEP_UNCHANGED_WHEN_EMPTY.has(key)) delete values[key];
       }
@@ -339,6 +358,10 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ resource: str
     if (Object.keys(values).length === 0) throw new BadRequest("No valid fields to update.");
 
     const companyId = await getWorkspaceCompanyId();
+    const documentCategory = DOCUMENT_RESOURCE_CATEGORIES[resource];
+    if (documentCategory && "version" in values && Number(values.version) < 1) {
+      throw new BadRequest("version must be at least 1.");
+    }
 
     if ((resource === "wage-settings" || resource === "purchase-orders") && "currency" in values) {
       values.currency = String(values.currency).toUpperCase().slice(0, 3);
@@ -404,6 +427,9 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ resource: str
     if (resource === "material-receipts") {
       updateWhere = and(updateWhere, eq(inventoryTransactions.movement, "receipt"));
     }
+    if (documentCategory) {
+      updateWhere = and(updateWhere, eq(documents.category, documentCategory));
+    }
     const [row] = await db.update(table).set(values)
       .where(updateWhere)
       .returning();
@@ -428,6 +454,7 @@ export async function DELETE(_req: Request, ctx: { params: Promise<{ resource: s
 
   try {
     const companyId = await getWorkspaceCompanyId();
+    const documentCategory = DOCUMENT_RESOURCE_CATEGORIES[resource];
     let paymentWageId: number | null = null;
     if (resource === "wage-payments") {
       const [existing] = await db.select({ wageId: wagePayments.wageId }).from(wagePayments)
@@ -438,6 +465,9 @@ export async function DELETE(_req: Request, ctx: { params: Promise<{ resource: s
     let deleteWhere = and(eq(table.id, id), eq(table.companyId, companyId));
     if (resource === "material-receipts") {
       deleteWhere = and(deleteWhere, eq(inventoryTransactions.movement, "receipt"));
+    }
+    if (documentCategory) {
+      deleteWhere = and(deleteWhere, eq(documents.category, documentCategory));
     }
     const [deleted] = await db.delete(table)
       .where(deleteWhere)

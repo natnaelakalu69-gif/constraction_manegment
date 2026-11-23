@@ -456,6 +456,11 @@ export default function OperationsDashboard() {
                 <div><strong>Procurement</strong><p>Purchase requests, suppliers, orders and received materials.</p></div>
                 <span className="module-status">Open</span>
               </Link>
+              <Link className="module-card" href="/documents">
+                <span className="module-icon module-indigo"><Icon name="report" /></span>
+                <div><strong>Documents</strong><p>Contracts, drawings, permits, safety files and delivery paperwork.</p></div>
+                <span className="module-status">Open</span>
+              </Link>
               <Link className="module-card" href="/notifications">
                 <span className="module-icon module-orange"><Icon name="attendance" /></span>
                 <div><strong>Notifications</strong><p>Late workers, absences, safety incidents, low stock and task deadlines.</p></div>

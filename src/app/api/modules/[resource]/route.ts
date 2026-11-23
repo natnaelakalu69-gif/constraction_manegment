@@ -3,15 +3,15 @@ import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   appUsers, attendanceRules, budgets, dailyFollowUps, dailyPlanTasks, dailyPlans, dailySiteReports, dayLaborWages,
-  departments, equipment, equipmentUsage, inventoryTransactions, materials, progressRecords, projectCosts,
+  departments, documents, equipment, equipmentUsage, inventoryTransactions, materials, progressRecords, projectCosts,
   projects, purchaseOrders, purchaseRequests, qualityDefects, qualityInspections, safetyIncidents,
   safetyInspections, shifts, sites, suppliers, teamMembers, wagePayments, wageSettings, workPackages,
   workTeams, workTasks, workers as workforce,
 } from "@/db/schema/enterprise";
 import {
-  ASSIGNEE_TYPES, BOOLEAN_OPTIONS, EXPENSE_CATEGORIES, EXPENSE_CATEGORY_LABELS, PAYMENT_FREQUENCIES,
-  RECORD_STATUSES, TASK_PRIORITIES, TASK_STATUSES, TASK_STATUS_LABELS, WAGE_PAYMENT_STATUS_LABELS,
-  type ExpenseCategory, type TaskStatus,
+  ASSIGNEE_TYPES, BOOLEAN_OPTIONS, DOCUMENT_RESOURCE_CATEGORIES, EXPENSE_CATEGORIES, EXPENSE_CATEGORY_LABELS,
+  PAYMENT_FREQUENCIES, RECORD_STATUSES, TASK_PRIORITIES, TASK_STATUSES, TASK_STATUS_LABELS, WAGE_PAYMENT_STATUS_LABELS,
+  type DocumentCategory, type ExpenseCategory, type TaskStatus,
 } from "@/lib/domain";
 import { isForeignKeyViolation, isUniqueConstraintViolation } from "@/lib/postgres-errors";
 import { getWorkspaceCompanyId, getWorkspaceUserId } from "@/lib/workspace";
@@ -132,6 +132,43 @@ type Resource = {
   list: (companyId: number) => Promise<unknown[]>;
   create: (b: Body, companyId: number) => Promise<unknown>;
 };
+
+/** All document sections share one table; the category is fixed by the endpoint. */
+function documentResource(category: DocumentCategory): Resource {
+  return {
+    list: async (companyId) => {
+      const rows = await db.select({
+        document: documents,
+        projectName: projects.name,
+        uploadedByName: appUsers.fullName,
+      }).from(documents)
+        .leftJoin(projects, eq(documents.projectId, projects.id))
+        .leftJoin(appUsers, eq(documents.uploadedBy, appUsers.id))
+        .where(and(eq(documents.companyId, companyId), eq(documents.category, category)))
+        .orderBy(desc(documents.createdAt), desc(documents.id));
+      return rows.map(({ document, projectName, uploadedByName }) => ({
+        ...document,
+        projectName: projectName ?? (document.projectId ? `Project #${document.projectId}` : null),
+        uploadedByName: uploadedByName ?? (document.uploadedBy ? `User #${document.uploadedBy}` : null),
+      }));
+    },
+    create: async (b, companyId) => {
+      const requestedVersion = nonNegativeInt(b, "version", 1);
+      const [row] = await db.insert(documents).values({
+        companyId,
+        projectId: int(b, "projectId", false),
+        category,
+        title: requiredText(b, "title"),
+        storageKey: requiredText(b, "storageKey"),
+        mimeType: text(b, "mimeType") ?? "application/pdf",
+        sizeBytes: nonNegativeInt(b, "sizeBytes", 0),
+        version: requestedVersion > 0 ? requestedVersion : 1,
+        uploadedBy: await getWorkspaceUserId(companyId),
+      }).returning();
+      return row;
+    },
+  };
+}
 
 const resources: Record<string, Resource> = {
   projects: {
@@ -716,6 +753,10 @@ const resources: Record<string, Resource> = {
     },
   },
 };
+
+for (const [resource, category] of Object.entries(DOCUMENT_RESOURCE_CATEGORIES)) {
+  resources[resource] = documentResource(category);
+}
 
 export async function GET(_req: Request, ctx: { params: Promise<{ resource: string }> }) {
   const resource = resources[(await ctx.params).resource];

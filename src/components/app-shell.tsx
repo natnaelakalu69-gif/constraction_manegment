@@ -9,6 +9,7 @@ const navigation = [
   { href: "/", label: "Overview", icon: "O" },
   { href: "/notifications", label: "Notifications", icon: "N" },
   { href: "/procurement", label: "Procurement", icon: "C" },
+  { href: "/documents", label: "Documents", icon: "F" },
   { href: "/daily-plans", label: "Daily plans", icon: "D" },
   { href: "/tasks", label: "Tasks", icon: "T" },
   { href: "/payroll", label: "Payroll", icon: "W" },
@@ -30,6 +31,7 @@ const pageTitles: Record<string, string> = {
   "/": "Overview",
   "/notifications": "Notifications",
   "/procurement": "Procurement",
+  "/documents": "Documents",
   "/daily-plans": "Daily plans",
   "/tasks": "Tasks & teams",
   "/payroll": "Payroll & wages",
@@ -94,7 +96,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
             <span className="status-orb" />
             <span>Core operations</span>
           </div>
-          <p>Notifications, procurement, tasks, payroll, expenses, attendance, materials, safety and reports are available.</p>
+          <p>Notifications, procurement, documents, tasks, payroll, expenses, attendance, materials, safety and reports are available.</p>
           <Link className="sidebar-cta" href="/attendance">
             <span aria-hidden="true">+</span>
             Record attendance
