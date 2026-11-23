@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import ModuleManager, { type ModuleSection } from "@/components/module-manager";
+import { PaginationControls, usePagination } from "@/components/pagination";
 import { fetchJson } from "@/lib/client-api";
 import {
   ASSIGNEE_TYPES, TASK_PRIORITIES, TASK_STATUSES, TASK_STATUS_LABELS, type TaskStatus,
@@ -82,6 +83,8 @@ function TaskBoard() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<number | null>(null);
+  const pagination = usePagination(tasks.length);
+  const visibleTasks = pagination.pageSlice(tasks);
 
   const load = useCallback(async () => {
     try {
@@ -129,7 +132,7 @@ function TaskBoard() {
       {error && <div className="management-message error-message" role="alert">{error}</div>}
       <div className="task-board">
         {TASK_STATUSES.map((status) => {
-          const items = tasks.filter((task) => task.status === status);
+          const items = visibleTasks.filter((task) => task.status === status);
           return (
             <div className="task-column" key={status}>
               <div className="task-column-head">
@@ -164,6 +167,7 @@ function TaskBoard() {
           );
         })}
       </div>
+      <PaginationControls pagination={pagination} />
     </section>
   );
 }

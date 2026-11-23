@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState, type FormEvent, type InputHTMLAttributes, type ReactNode } from "react";
 import { fetchJson } from "@/lib/client-api";
+import { PaginationControls, usePagination } from "@/components/pagination";
 import {
   CODE_MIN_DIGITS,
   PHONE_MIN_DIGITS,
@@ -94,6 +95,8 @@ function ModuleSectionCard({ section }: { section: ModuleSection }) {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const pagination = usePagination(rows.length);
+  const visibleRows = pagination.pageSlice(rows);
 
   const fetchRows = useCallback(async () => fetchJson<Row[]>(section.endpoint), [section.endpoint]);
 
@@ -268,7 +271,7 @@ function ModuleSectionCard({ section }: { section: ModuleSection }) {
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => (
+            {visibleRows.map((row) => (
               <tr key={String(row.id)} className={editingId === Number(row.id) ? "editing-row" : undefined}>
                 {section.columns.map((column) => <td key={column.key}>{display(row[column.key])}</td>)}
                 <td>
@@ -288,6 +291,7 @@ function ModuleSectionCard({ section }: { section: ModuleSection }) {
           </tbody>
         </table>
       </div>
+      <PaginationControls pagination={pagination} />
     </section>
   );
 }

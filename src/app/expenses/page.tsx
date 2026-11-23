@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import ModuleManager, { type ModuleSection } from "@/components/module-manager";
+import { PaginationControls, usePagination } from "@/components/pagination";
 import { fetchJson } from "@/lib/client-api";
 import { EXPENSE_CATEGORIES, EXPENSE_CATEGORY_LABELS } from "@/lib/domain";
 import type { ExpenseReport } from "@/lib/report-types";
@@ -92,6 +93,9 @@ function ExpenseSummary() {
   }, [load]);
 
   const maxCategory = Math.max(1, ...(report?.byCategory.map((item) => item.amount) ?? [0]));
+  const rows = report?.rows ?? [];
+  const pagination = usePagination(rows.length);
+  const visibleRows = pagination.pageSlice(rows);
 
   return (
     <section className="management-card">
@@ -159,7 +163,7 @@ function ExpenseSummary() {
             </tr>
           </thead>
           <tbody>
-            {(report?.rows ?? []).map((row) => (
+            {visibleRows.map((row) => (
               <tr key={`${row.projectId}-${row.costCode}-${row.budgetId ?? "unallocated"}`}>
                 <td>{row.projectName}</td><td>{row.costCode}</td><td>{row.description}</td>
                 <td>{money(row.budget)}</td><td>{money(row.actual)}</td>
@@ -167,12 +171,13 @@ function ExpenseSummary() {
                 <td>{money(row.utilization)}%</td>
               </tr>
             ))}
-            {(report?.rows ?? []).length === 0 && (
+            {rows.length === 0 && (
               <tr><td className="management-empty" colSpan={7}>No budgets or expenses yet. Add budgets above to see budget vs actual.</td></tr>
             )}
           </tbody>
         </table>
       </div>
+      <PaginationControls pagination={pagination} />
     </section>
   );
 }

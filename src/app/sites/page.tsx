@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import { fetchJson } from "@/lib/client-api";
+import { PaginationControls, usePagination } from "@/components/pagination";
 import { CODE_MIN_DIGITS, businessCodeError, isValidBusinessCode } from "@/lib/validation";
 
 type Site = {
@@ -31,6 +32,8 @@ export default function SitesPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const pagination = usePagination(sites.length);
+  const visibleSites = pagination.pageSlice(sites);
 
   async function loadSites() {
     setIsLoading(true);
@@ -228,7 +231,7 @@ export default function SitesPage() {
               </tr>
             </thead>
             <tbody>
-              {sites.map((site) => (
+              {visibleSites.map((site) => (
                 <tr key={site.id} className={editingId === site.id ? "editing-row" : undefined}>
                   <td>{site.siteCode}</td><td>{site.siteName}</td><td>{site.location}</td>
                   <td>{site.managerName || "—"}</td><td>{site.status}</td>
@@ -249,6 +252,7 @@ export default function SitesPage() {
             </tbody>
           </table>
         </div>
+        <PaginationControls pagination={pagination} />
       </section>
     </main>
   );

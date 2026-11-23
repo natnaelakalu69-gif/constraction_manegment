@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { fetchJson } from "@/lib/client-api";
+import { PaginationControls, usePagination } from "@/components/pagination";
 
 type Plan = { id: number; planDate: string; supervisorName: string };
 type Project = { id: number; name: string };
@@ -33,6 +34,8 @@ export default function DailyReportsPage() {
   const [loading, setLoading] = useState(true);
   const [editingReportId, setEditingReportId] = useState<number | null>(null);
   const [editingFollowUp, setEditingFollowUp] = useState<{ id: number; reportId: number } | null>(null);
+  const pagination = usePagination(followUps.length);
+  const visibleFollowUps = pagination.pageSlice(followUps);
 
   const load = useCallback(async () => {
     const [r, f, p, pr] = await Promise.all([
@@ -286,7 +289,7 @@ export default function DailyReportsPage() {
           <table className="management-table">
             <thead><tr><th>Report</th><th>Issue</th><th>Action</th><th>Assigned to</th><th>Due</th><th>Status</th><th>ACTIONS</th></tr></thead>
             <tbody>
-              {followUps.map((f) => (
+              {visibleFollowUps.map((f) => (
                 <tr key={f.id} className={editingFollowUp?.id === f.id ? "editing-row" : undefined}>
                   <td>{f.reportId ?? "—"}</td><td>{f.issue}</td><td>{f.action}</td>
                   <td>{f.assignedTo ?? "—"}</td><td>{f.dueDate ?? "—"}</td><td>{f.status}</td>
@@ -303,6 +306,7 @@ export default function DailyReportsPage() {
             </tbody>
           </table>
         </div>
+        <PaginationControls pagination={pagination} />
       </section>
     </main>
   );

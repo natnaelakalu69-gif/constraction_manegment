@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { fetchJson } from "@/lib/client-api";
+import { PaginationControls, usePagination } from "@/components/pagination";
 
 type Role = {
   id: number;
@@ -48,6 +49,13 @@ export default function RoleManager() {
   const [editingRoleId, setEditingRoleId] = useState<number | null>(null);
   const [editingPermissionId, setEditingPermissionId] = useState<number | null>(null);
   const [editingUserId, setEditingUserId] = useState<number | null>(null);
+
+  const permissions = snapshot?.permissions ?? [];
+  const users = snapshot?.users ?? [];
+  const permissionPagination = usePagination(permissions.length);
+  const userPagination = usePagination(users.length);
+  const visiblePermissions = permissionPagination.pageSlice(permissions);
+  const visibleUsers = userPagination.pageSlice(users);
 
   const refresh = useCallback(async () => {
     setSnapshot(await fetchJson<Snapshot>("/api/roles"));
@@ -325,7 +333,7 @@ export default function RoleManager() {
               </tr>
             </thead>
             <tbody>
-              {(snapshot?.permissions ?? []).map((permission) => (
+              {visiblePermissions.map((permission) => (
                 <tr key={permission.id} className={editingPermissionId === permission.id ? "editing-row" : undefined}>
                   <td>{permission.code}</td>
                   <td>{permission.module}</td>
@@ -346,6 +354,7 @@ export default function RoleManager() {
             </tbody>
           </table>
         </div>
+        <PaginationControls pagination={permissionPagination} />
       </section>
 
       <section className="management-card">
@@ -405,7 +414,7 @@ export default function RoleManager() {
               </tr>
             </thead>
             <tbody>
-              {(snapshot?.users ?? []).map((user) => (
+              {visibleUsers.map((user) => (
                 <tr key={user.id} className={editingUserId === user.id ? "editing-row" : undefined}>
                   <td><strong>{user.fullName}</strong></td>
                   <td>{user.email}</td>
@@ -458,6 +467,7 @@ export default function RoleManager() {
             </tbody>
           </table>
         </div>
+        <PaginationControls pagination={userPagination} />
       </section>
     </main>
   );

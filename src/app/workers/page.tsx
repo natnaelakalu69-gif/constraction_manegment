@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import { fetchJson } from "@/lib/client-api";
+import { PaginationControls, usePagination } from "@/components/pagination";
 import {
   CODE_MIN_DIGITS,
   PHONE_MIN_DIGITS,
@@ -47,6 +48,8 @@ export default function WorkersPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const pagination = usePagination(workers.length);
+  const visibleWorkers = pagination.pageSlice(workers);
 
   async function loadWorkers() {
     setIsLoading(true);
@@ -267,7 +270,7 @@ export default function WorkersPage() {
               </tr>
             </thead>
             <tbody>
-              {workers.map((worker) => (
+              {visibleWorkers.map((worker) => (
                 <tr key={worker.id} className={editingId === worker.id ? "editing-row" : undefined}>
                   <td>{worker.workerCode}</td><td>{worker.fullName}</td><td>{worker.position}</td>
                   <td>{worker.department || "—"}</td><td>{worker.phone || "—"}</td><td>{worker.status}</td>
@@ -288,6 +291,7 @@ export default function WorkersPage() {
             </tbody>
           </table>
         </div>
+        <PaginationControls pagination={pagination} />
       </section>
     </main>
   );

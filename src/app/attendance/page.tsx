@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { fetchJson } from "@/lib/client-api";
+import { PaginationControls, usePagination } from "@/components/pagination";
 
 type Worker = { id: number; workerCode: string; fullName: string };
 type Site = { id: number; siteName: string };
@@ -60,6 +61,8 @@ export default function AttendancePage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const pagination = usePagination(records.length);
+  const visibleRecords = pagination.pageSlice(records);
 
   const loadData = useCallback(() => Promise.all([
     fetchJson<Worker[]>("/api/workers"),
@@ -265,7 +268,7 @@ export default function AttendancePage() {
               </tr>
             </thead>
             <tbody>
-              {records.map((record) => (
+              {visibleRecords.map((record) => (
                 <tr key={record.id} className={editingId === record.id ? "editing-row" : undefined}>
                   <td>{workers.find((worker) => worker.id === record.workerId)?.fullName ?? `#${record.workerId}`}</td>
                   <td>{sites.find((site) => site.id === record.siteId)?.siteName ?? `#${record.siteId}`}</td>
@@ -289,6 +292,7 @@ export default function AttendancePage() {
             </tbody>
           </table>
         </div>
+        <PaginationControls pagination={pagination} />
       </section>
     </main>
   );

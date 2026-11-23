@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import ModuleManager, { type ModuleSection } from "@/components/module-manager";
+import { PaginationControls, usePagination } from "@/components/pagination";
 import { fetchJson } from "@/lib/client-api";
 
 const sections: ModuleSection[] = [
@@ -111,6 +112,8 @@ function StockSummary() {
     const remaining = received - issued + adjusted;
     return { ...m, received, issued, adjusted, remaining };
   }), [materials, txs]);
+  const pagination = usePagination(rows.length);
+  const visibleRows = pagination.pageSlice(rows);
 
   return (
     <section className="management-card" style={{ marginTop: 16 }}>
@@ -126,7 +129,7 @@ function StockSummary() {
         <table className="management-table">
           <thead><tr><th scope="col">Material</th><th scope="col">SKU</th><th scope="col">Received</th><th scope="col">Issued</th><th scope="col">Adjusted</th><th scope="col">Remaining</th><th scope="col">Unit</th><th scope="col">Min stock</th></tr></thead>
           <tbody>
-            {rows.map((r) => (
+            {visibleRows.map((r) => (
               <tr key={r.id}>
                 <td>{r.name}</td><td>{r.sku}</td><td>{r.received}</td><td>{r.issued}</td><td>{r.adjusted}</td>
                 <td><strong>{r.remaining}</strong></td><td>{r.unit}</td><td>{r.minimumStock ?? "—"}</td>
@@ -136,6 +139,7 @@ function StockSummary() {
           </tbody>
         </table>
       </div>
+      <PaginationControls pagination={pagination} />
     </section>
   );
 }

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { fetchJson } from "@/lib/client-api";
+import { PaginationControls, usePagination } from "@/components/pagination";
 import { useNotificationReadState } from "@/lib/notification-read-state";
 import {
   NOTIFICATION_TYPES, NOTIFICATION_TYPE_LABELS,
@@ -60,6 +61,8 @@ export default function NotificationsPage() {
     (bundle?.notifications ?? []).filter((item) =>
       (filter === "all" || item.type === filter) && (!unreadOnly || !isRead(item.id))),
   [bundle, filter, unreadOnly, isRead]);
+  const pagination = usePagination(visible.length);
+  const visibleRows = pagination.pageSlice(visible);
 
   function markAllRead() {
     markRead((bundle?.notifications ?? []).map((item) => item.id));
@@ -155,7 +158,7 @@ export default function NotificationsPage() {
               </tr>
             </thead>
             <tbody>
-              {visible.map((item) => (
+              {visibleRows.map((item) => (
                 <tr key={item.id} className={isRead(item.id) ? undefined : "notification-unread"}>
                   <td><span className={`status-pill status-${item.severity}`}>{item.severity}</span></td>
                   <td>{item.typeLabel}</td>
@@ -187,6 +190,7 @@ export default function NotificationsPage() {
             </tbody>
           </table>
         </div>
+        <PaginationControls pagination={pagination} />
       </section>
     </main>
   );

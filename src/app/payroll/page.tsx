@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import ModuleManager, { type ModuleSection } from "@/components/module-manager";
+import { PaginationControls, usePagination } from "@/components/pagination";
 import { fetchJson } from "@/lib/client-api";
 import type { WagePaymentStatus } from "@/lib/domain";
 
@@ -105,6 +106,10 @@ function PayrollSummary() {
   const [wages, setWages] = useState<Wage[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const wagePagination = usePagination(wages.length);
+  const paymentPagination = usePagination(payments.length);
+  const visibleWages = wagePagination.pageSlice(wages);
+  const visiblePayments = paymentPagination.pageSlice(payments);
 
   const load = useCallback(async () => {
     try {
@@ -175,7 +180,7 @@ function PayrollSummary() {
             </tr>
           </thead>
           <tbody>
-            {wages.map((wage) => {
+            {visibleWages.map((wage) => {
               const balance = Math.max(0, wage.netPay - Number(wage.paidAmount || 0));
               return (
                 <tr key={wage.id}>
@@ -191,6 +196,7 @@ function PayrollSummary() {
           </tbody>
         </table>
       </div>
+      <PaginationControls pagination={wagePagination} />
 
       <div className="summary-subheading">Payment history</div>
       <div className="management-table-wrap">
@@ -199,7 +205,7 @@ function PayrollSummary() {
             <tr><th scope="col">Date</th><th scope="col">Wage period</th><th scope="col">Amount</th><th scope="col">Method</th><th scope="col">Reference</th></tr>
           </thead>
           <tbody>
-            {payments.map((payment) => (
+            {visiblePayments.map((payment) => (
               <tr key={payment.id}>
                 <td>{payment.paymentDate}</td><td>{payment.wageLabel}</td>
                 <td><strong>{money(payment.amount)}</strong></td><td>{payment.method}</td>
@@ -210,6 +216,7 @@ function PayrollSummary() {
           </tbody>
         </table>
       </div>
+      <PaginationControls pagination={paymentPagination} />
     </section>
   );
 }

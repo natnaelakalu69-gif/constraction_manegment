@@ -55,7 +55,9 @@ Never commit `.env` or secrets. Production configuration will be completed along
 
 These legacy endpoints are not yet the planned `/api/v1` API and do not satisfy the full security, validation, pagination, or RBAC requirements. They will be migrated in subsequent phases.
 
-The management screens provide per-record **Edit** and **Delete** actions: the generic module screens load the selected row into the form and save with `PATCH`, while Workers, Sites, Roles & access, Attendance, and Daily reports use inline edit forms and save with `PUT`/`PATCH`. Every delete asks for confirmation first. The daily workflow pages are:
+The management screens provide per-record **Edit** and **Delete** actions: the generic module screens load the selected row into the form and save with `PATCH`, while Workers, Sites, Roles & access, Attendance, and Daily reports use inline edit forms and save with `PUT`/`PATCH`. Every delete asks for confirmation first.
+
+Record lists are paginated at **10 rows per page** with **Previous** / **Next** buttons and a page-number box. Pagination is shared by generic module tables, workers, sites, attendance, follow-ups, notifications, task board, role assignments, payroll summaries, expense details and material stock summaries. The daily workflow pages are:
 
 - `/daily-plans` — the project manager creates a plan and assigns tasks, deadlines, supervisors/assignees and required resources.
 - `/tasks` — create teams, assign workers to teams, assign tasks to a worker or team, set supervisor/deadline/priority, and move tasks through Pending → In Progress → Completed on the task board.
