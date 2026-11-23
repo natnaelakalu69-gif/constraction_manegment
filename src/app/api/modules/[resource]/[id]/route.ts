@@ -1,14 +1,19 @@
 import { NextResponse } from "next/server";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
-  budgets, dailyFollowUps, dailyPlanTasks, dailyPlans, dailySiteReports, equipment,
-  equipmentUsage, inventoryTransactions, materials, progressRecords, projectCosts,
-  projects, qualityDefects, qualityInspections, safetyIncidents, safetyInspections, workPackages,
+  budgets, dailyFollowUps, dailyPlanTasks, dailyPlans, dailySiteReports, dayLaborWages,
+  equipment, equipmentUsage, inventoryTransactions, materials, progressRecords, projectCosts,
+  projects, qualityDefects, qualityInspections, safetyIncidents, safetyInspections, teamMembers,
+  wagePayments, workPackages, workTeams, workTasks, workers as workforce,
 } from "@/db/schema/enterprise";
+import {
+  ASSIGNEE_TYPES, EXPENSE_CATEGORIES, TASK_PRIORITIES, TASK_STATUSES, WAGE_PAYMENT_STATUSES,
+} from "@/lib/domain";
 import { isForeignKeyViolation, isUniqueConstraintViolation } from "@/lib/postgres-errors";
 import { getWorkspaceCompanyId } from "@/lib/workspace";
 import { businessCodeError, isValidBusinessCode, isValidPhone, phoneError } from "@/lib/validation";
+import { calculateWageTotals, paymentStatusFor, resolveOvertimeRate } from "@/server/services/payroll";
 
 class BadRequest extends Error {}
 
@@ -37,6 +42,12 @@ const TABLES: Record<string, any> = {
   "daily-site-reports": dailySiteReports,
   "daily-follow-ups": dailyFollowUps,
   "safety-inspections": safetyInspections,
+  workforce,
+  teams: workTeams,
+  "team-members": teamMembers,
+  "work-tasks": workTasks,
+  "day-labor-wages": dayLaborWages,
+  "wage-payments": wagePayments,
 };
 
 const EDITABLE: Record<string, Record<string, FieldSpec>> = {
@@ -60,7 +71,9 @@ const EDITABLE: Record<string, Record<string, FieldSpec>> = {
     description: { type: "text", required: true }, plannedAmount: { type: "number", required: true },
   },
   "project-costs": {
-    projectId: { type: "int", required: true }, category: { type: "text", required: true },
+    projectId: { type: "int", required: true }, budgetId: { type: "int" },
+    category: { type: "text", required: true },
+    expenseCategory: { type: "enum", allowed: EXPENSE_CATEGORIES },
     description: { type: "text" }, amount: { type: "number", required: true },
     incurredOn: { type: "date", required: true }, reference: { type: "text" },
   },
@@ -127,7 +140,60 @@ const EDITABLE: Record<string, Record<string, FieldSpec>> = {
     hazards: { type: "text" }, incidentsObserved: { type: "text" },
     correctiveActions: { type: "text" }, status: { type: "enum", allowed: APPROVAL }, notes: { type: "text" },
   },
+  workforce: {
+    workerCode: { type: "text", required: true, format: "businessCode" }, fullName: { type: "text", required: true },
+    phone: { type: "text", format: "phone" },
+    employmentType: { type: "enum", allowed: ["employee", "day_labor", "contractor"] },
+    dailyRate: { type: "number" }, status: { type: "enum", allowed: ["active", "inactive", "archived"] },
+  },
+  teams: {
+    code: { type: "text", required: true }, name: { type: "text", required: true },
+    supervisorName: { type: "text" }, notes: { type: "text" },
+  },
+  "team-members": {
+    teamId: { type: "int", required: true }, workerId: { type: "int", required: true },
+  },
+  "work-tasks": {
+    title: { type: "text", required: true }, description: { type: "text" },
+    projectId: { type: "int" }, siteId: { type: "int" },
+    assigneeType: { type: "enum", allowed: ASSIGNEE_TYPES }, workerId: { type: "int" }, teamId: { type: "int" },
+    supervisorName: { type: "text", required: true },
+    priority: { type: "enum", allowed: TASK_PRIORITIES }, status: { type: "enum", allowed: TASK_STATUSES },
+    deadline: { type: "date" },
+  },
+  "day-labor-wages": {
+    workerId: { type: "int", required: true }, periodStart: { type: "date", required: true },
+    periodEnd: { type: "date", required: true }, workingDays: { type: "number", required: true },
+    dailyRate: { type: "number", required: true }, overtimeHours: { type: "number" },
+    overtimeRate: { type: "number" }, approvedOvertime: { type: "number" },
+    approvedDeductions: { type: "number" }, status: { type: "enum", allowed: APPROVAL },
+    paymentStatus: { type: "enum", allowed: WAGE_PAYMENT_STATUSES }, paidAmount: { type: "number" },
+    paidAt: { type: "datetime" }, paymentReference: { type: "text" },
+  },
+  "wage-payments": {
+    amount: { type: "number", required: true }, paymentDate: { type: "date", required: true },
+    method: { type: "text" }, reference: { type: "text" }, notes: { type: "text" },
+  },
 };
+
+async function syncWagePaymentStatus(wageId: number, companyId: number) {
+  const [wage] = await db.select().from(dayLaborWages)
+    .where(and(eq(dayLaborWages.id, wageId), eq(dayLaborWages.companyId, companyId)));
+  if (!wage) return;
+
+  const [aggregate] = await db.select({ paid: sql<string>`coalesce(sum(${wagePayments.amount}), 0)` })
+    .from(wagePayments)
+    .where(and(eq(wagePayments.wageId, wageId), eq(wagePayments.companyId, companyId)));
+  const paidAmount = Number(aggregate?.paid ?? 0);
+  const status = paymentStatusFor(paidAmount, wage.total);
+
+  await db.update(dayLaborWages).set({
+    paidAmount: paidAmount.toFixed(2),
+    paymentStatus: status,
+    paidAt: status === "paid" ? new Date() : null,
+    updatedAt: new Date(),
+  }).where(and(eq(dayLaborWages.id, wageId), eq(dayLaborWages.companyId, companyId)));
+}
 
 function coerce(value: unknown, spec: FieldSpec, key: string) {
   if (value === null || value === undefined || value === "") {
@@ -181,17 +247,61 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ resource: str
     for (const [key, spec] of Object.entries(editable)) {
       if (key in b) values[key] = coerce(b[key], spec, key);
     }
+    if (Object.keys(values).length === 0) throw new BadRequest("No valid fields to update.");
+
+    const companyId = await getWorkspaceCompanyId();
+
     if (resource === "daily-site-reports" && "status" in values) {
       values.reviewedAt = values.status === "approved" || values.status === "rejected" ? new Date() : null;
     }
-    if (Object.keys(values).length === 0) throw new BadRequest("No valid fields to update.");
-    if ("updatedAt" in table) values.updatedAt = new Date();
 
-    const companyId = await getWorkspaceCompanyId();
+    if (resource === "work-tasks" && ("assigneeType" in values || "workerId" in values || "teamId" in values)) {
+      const [existing] = await db.select().from(workTasks)
+        .where(and(eq(workTasks.id, id), eq(workTasks.companyId, companyId)));
+      if (!existing) return NextResponse.json({ error: "Record not found." }, { status: 404 });
+      const assigneeType = values.assigneeType ?? existing.assigneeType;
+      const workerId = "workerId" in values ? values.workerId : existing.workerId;
+      const teamId = "teamId" in values ? values.teamId : existing.teamId;
+      if (assigneeType === "worker") {
+        if (!workerId) throw new BadRequest("workerId is required when the assignee type is worker.");
+        values.teamId = null;
+      } else {
+        if (!teamId) throw new BadRequest("teamId is required when the assignee type is team.");
+        values.workerId = null;
+      }
+    }
+
+    if (resource === "day-labor-wages") {
+      const [existing] = await db.select().from(dayLaborWages)
+        .where(and(eq(dayLaborWages.id, id), eq(dayLaborWages.companyId, companyId)));
+      if (!existing) return NextResponse.json({ error: "Record not found." }, { status: 404 });
+      const merged = { ...existing, ...values } as typeof existing;
+      if (merged.periodEnd < merged.periodStart) throw new BadRequest("periodEnd must be on or after periodStart.");
+      const overtimeRate = resolveOvertimeRate(merged.dailyRate, merged.overtimeRate);
+      const totals = calculateWageTotals(merged);
+      values.overtimeRate = overtimeRate;
+      values.total = totals.netPay.toFixed(2);
+      if (!("paymentStatus" in values)) {
+        const paidAmount = "paidAmount" in values ? String(values.paidAmount) : merged.paidAmount;
+        values.paymentStatus = paymentStatusFor(paidAmount, String(values.total));
+      }
+    }
+
+    let paymentWageId: number | null = null;
+    if (resource === "wage-payments") {
+      if ("amount" in values && Number(values.amount) <= 0) throw new BadRequest("amount must be greater than zero.");
+      const [existing] = await db.select({ wageId: wagePayments.wageId }).from(wagePayments)
+        .where(and(eq(wagePayments.id, id), eq(wagePayments.companyId, companyId)));
+      if (!existing) return NextResponse.json({ error: "Record not found." }, { status: 404 });
+      paymentWageId = existing.wageId;
+    }
+
+    if ("updatedAt" in table) values.updatedAt = new Date();
     const [row] = await db.update(table).set(values)
       .where(and(eq(table.id, id), eq(table.companyId, companyId)))
       .returning();
     if (!row) return NextResponse.json({ error: "Record not found." }, { status: 404 });
+    if (paymentWageId !== null) await syncWagePaymentStatus(paymentWageId, companyId);
     return NextResponse.json(row);
   } catch (error) {
     if (error instanceof BadRequest) return NextResponse.json({ error: error.message }, { status: 400 });
@@ -211,10 +321,18 @@ export async function DELETE(_req: Request, ctx: { params: Promise<{ resource: s
 
   try {
     const companyId = await getWorkspaceCompanyId();
+    let paymentWageId: number | null = null;
+    if (resource === "wage-payments") {
+      const [existing] = await db.select({ wageId: wagePayments.wageId }).from(wagePayments)
+        .where(and(eq(wagePayments.id, id), eq(wagePayments.companyId, companyId)));
+      paymentWageId = existing?.wageId ?? null;
+    }
+
     const [deleted] = await db.delete(table)
       .where(and(eq(table.id, id), eq(table.companyId, companyId)))
       .returning({ id: table.id });
     if (!deleted) return NextResponse.json({ error: "Record not found." }, { status: 404 });
+    if (paymentWageId !== null) await syncWagePaymentStatus(paymentWageId, companyId);
     return NextResponse.json({ id, deleted: true });
   } catch (error) {
     if (isForeignKeyViolation(error)) {

@@ -11,6 +11,12 @@ import {
   phoneError,
 } from "@/lib/validation";
 
+function notifyModuleChange(endpoint: string) {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("module-change", { detail: { endpoint } }));
+  }
+}
+
 export type ModuleField = {
   name: string;
   label: string;
@@ -126,6 +132,7 @@ function ModuleSectionCard({ section }: { section: ModuleSection }) {
       }
       setSuccess("Record deleted.");
       setRows(await fetchRows());
+      notifyModuleChange(section.endpoint);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "The record could not be deleted.");
     } finally {
@@ -192,6 +199,7 @@ function ModuleSectionCard({ section }: { section: ModuleSection }) {
       if (editing) setEditingId(null);
       setForm(emptyForm());
       setRows(await fetchRows());
+      notifyModuleChange(section.endpoint);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : `The record could not be ${editing ? "updated" : "added"}.`);
     } finally {

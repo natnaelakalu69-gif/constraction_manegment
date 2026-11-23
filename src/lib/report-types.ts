@@ -49,3 +49,27 @@ export type ExecutiveSummary = {
   };
   periods: Record<Period, PeriodReport>;
 };
+
+export type BudgetVsActualRow = {
+  budgetId: number | null;
+  projectId: number;
+  projectName: string;
+  costCode: string;
+  description: string;
+  budget: number;
+  actual: number;
+  variance: number;
+  utilization: number;
+};
+
+export type ExpenseReport = {
+  projectId: number | null;
+  totals: {
+    budget: number;
+    actual: number;
+    variance: number;
+    utilization: number;
+  };
+  byCategory: Array<{ category: string; label: string; amount: number }>;
+  rows: BudgetVsActualRow[];
+};

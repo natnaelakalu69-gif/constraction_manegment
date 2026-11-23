@@ -23,7 +23,7 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:3000. The currently implemented basic routes are documented below. Database migration commands are available via `npm run db:generate` and `npm run db:migrate`; the existing schema is a legacy attendance foundation, not yet the normalized target model.
+Open http://localhost:3000. Run `npm run db:migrate` once `DATABASE_URL` points at your database; migration `0003` adds the task, payroll and expense tables/columns used by the new modules. The currently implemented routes are documented below.
 
 ## Environment variables
 
@@ -44,9 +44,10 @@ Never commit `.env` or secrets. Production configuration will be completed along
 - `GET /api/reports/daily-operations?date=YYYY-MM-DD` — combined attendance, plans, progress, materials, safety and outstanding issues
 - `GET /api/reports/period?period=daily|weekly|monthly|yearly&date=YYYY-MM-DD` — aggregated operations report for the range containing the anchor date (weekly = Mon–Sun, monthly = calendar month, yearly = calendar year; end date is exclusive; yearly trend buckets by month)
 - `GET /api/reports/executive?date=YYYY-MM-DD` — portfolio KPIs (projects, sites, workforce) plus all four period reports in one response
-- `GET/POST /api/modules/:resource` for `projects`, `work-packages`, `progress-records`, `budgets`, `project-costs`, `materials`, `inventory-transactions`, `equipment`, `equipment-usage`, `safety-incidents`, `quality-inspections`, `quality-defects`, `daily-plans`, `daily-plan-tasks`, `daily-site-reports`, `daily-follow-ups`, and `safety-inspections`
-- `PATCH /api/modules/:resource/:id` updates any editable field on every module resource listed above (per-resource field whitelist); `daily-site-reports` also sets `reviewedAt` when status becomes `approved` or `rejected`
+- `GET/POST /api/modules/:resource` for `projects`, `work-packages`, `progress-records`, `budgets`, `project-costs`, `materials`, `inventory-transactions`, `equipment`, `equipment-usage`, `safety-incidents`, `quality-inspections`, `quality-defects`, `daily-plans`, `daily-plan-tasks`, `daily-site-reports`, `daily-follow-ups`, `safety-inspections`, `workforce`, `teams`, `team-members`, `work-tasks`, `day-labor-wages`, and `wage-payments`
+- `PATCH /api/modules/:resource/:id` updates any editable field on every module resource listed above (per-resource field whitelist); `daily-site-reports` also sets `reviewedAt` when status becomes `approved` or `rejected`; wage edits recalculate net pay, and payment edits/deletes resynchronise the wage's paid amount and status
 - `DELETE /api/modules/:resource/:id` deletes a record company-scoped; referenced records return HTTP 409
+- `GET /api/reports/expenses?projectId=…` — budget vs actual by cost code, expense-type totals and overall utilization (`projectId` is optional)
 - `GET/POST /api/roles` — role snapshot and role creation; `PATCH/DELETE /api/roles/:id` for custom roles (default roles allow description edits only, and cannot be deleted)
 - `POST/PATCH/DELETE /api/roles/permissions[/:id]` and `POST/PATCH/DELETE /api/roles/users[/:id]` for permissions and users; `POST/DELETE /api/roles/grants` for grants. Default permissions cannot be deleted.
 
@@ -55,6 +56,9 @@ These legacy endpoints are not yet the planned `/api/v1` API and do not satisfy 
 The management screens provide per-record **Edit** and **Delete** actions: the generic module screens load the selected row into the form and save with `PATCH`, while Workers, Sites, Roles & access, Attendance, and Daily reports use inline edit forms and save with `PUT`/`PATCH`. Every delete asks for confirmation first. The daily workflow pages are:
 
 - `/daily-plans` — the project manager creates a plan and assigns tasks, deadlines, supervisors/assignees and required resources.
+- `/tasks` — create teams, assign workers to teams, assign tasks to a worker or team, set supervisor/deadline/priority, and move tasks through Pending → In Progress → Completed on the task board.
+- `/payroll` — maintain worker daily rates, calculate daily labor wages (days × rate + overtime − deductions), record payments and review paid/unpaid balances and payment history.
+- `/expenses` — record material, labor, equipment and other project expenses against budgets, and review budget vs actual cost by cost code and expense type.
 - `/attendance` — the supervisor records present, absent and late workers.
 - `/daily-reports` — the supervisor submits completed work, progress %, photos and challenges; the manager approves reports, records delays and assigns follow-up actions.
 - `/materials` — the materials manager records receipts/issues and sees received, issued and remaining stock.

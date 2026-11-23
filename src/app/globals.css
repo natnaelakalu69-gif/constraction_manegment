@@ -1694,6 +1694,155 @@ a.nav-link:hover {
   accent-color: var(--blue);
 }
 
+/* Tasks, payroll and expense summaries */
+.task-board {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+
+.task-column {
+  min-height: 160px;
+  padding: 12px;
+  border: 1px solid #e9edf1;
+  border-radius: 9px;
+  background: #f8fafc;
+}
+
+.task-column-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e3e9f0;
+  color: #36485d;
+  font-size: 12px;
+}
+
+.task-column-head span {
+  min-width: 22px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: #e8edf7;
+  color: #4b5f8a;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.task-card {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 9px;
+  padding: 11px;
+  border: 1px solid #e5eaf0;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.task-card strong {
+  color: #253447;
+  font-size: 12px;
+}
+
+.task-card p {
+  margin: 0;
+  color: #68788a;
+  font-size: 11px;
+}
+
+.task-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  color: #8793a1;
+  font-size: 10px;
+}
+
+.task-overdue,
+.variance-over {
+  color: #c2513f !important;
+  font-weight: 600;
+}
+
+.variance-under {
+  color: #2e8b63;
+  font-weight: 600;
+}
+
+.task-status-select,
+.summary-filter {
+  min-height: 32px;
+  padding: 0 8px;
+  border: 1px solid #dfe5eb;
+  border-radius: 6px;
+  background: #fff;
+  color: #45566a;
+  font: inherit;
+  font-size: 11px;
+}
+
+.task-status-select {
+  width: 100%;
+}
+
+.task-empty {
+  margin: 12px 0 0;
+  color: #98a3af;
+  font-size: 11px;
+  text-align: center;
+}
+
+.status-pill {
+  display: inline-block;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.status-unpaid {
+  background: #fff0ec;
+  color: #b4503c;
+}
+
+.status-partial {
+  background: #fff5df;
+  color: #9c6c1c;
+}
+
+.status-paid,
+.status-completed {
+  background: #e8f7f0;
+  color: #2b8b62;
+}
+
+.status-pending {
+  background: #eff2f5;
+  color: #64748b;
+}
+
+.status-in_progress {
+  background: #edf1ff;
+  color: #4661c4;
+}
+
+.summary-subheading {
+  margin: 20px 0 10px;
+  color: #36485d;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+@media (max-width: 1100px) {
+  .task-board {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 760px) {
   .role-grid {
     grid-template-columns: 1fr;

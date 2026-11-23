@@ -416,6 +416,21 @@ export default function OperationsDashboard() {
                 <div><strong>Daily plans</strong><p>Tasks, deadlines, supervisors and required resources.</p></div>
                 <span className="module-status">Open</span>
               </Link>
+              <Link className="module-card" href="/tasks">
+                <span className="module-icon module-indigo"><Icon name="plan" /></span>
+                <div><strong>Tasks &amp; teams</strong><p>Assign tasks to workers or teams, supervise and track deadlines.</p></div>
+                <span className="module-status">Open</span>
+              </Link>
+              <Link className="module-card" href="/payroll">
+                <span className="module-icon module-teal"><Icon name="people" /></span>
+                <div><strong>Payroll &amp; wages</strong><p>Daily wages, overtime, salary calculation and payment history.</p></div>
+                <span className="module-status">Open</span>
+              </Link>
+              <Link className="module-card" href="/expenses">
+                <span className="module-icon module-orange"><Icon name="report" /></span>
+                <div><strong>Expenses &amp; budgets</strong><p>Material, labor, equipment and other costs against budget.</p></div>
+                <span className="module-status">Open</span>
+              </Link>
               <Link className="module-card" href="/daily-reports">
                 <span className="module-icon module-orange"><Icon name="attendance" /></span>
                 <div><strong>Daily site reports</strong><p>Progress, photos, challenges, reviews and follow-ups.</p></div>
@@ -456,7 +471,7 @@ export default function OperationsDashboard() {
 
           <footer className="dashboard-footer">
             <span>Construction Operations</span>
-            <span>Live data covers sites, attendance, daily plans, site reports, materials and safety.</span>
+            <span>Live data covers sites, attendance, tasks, payroll, expenses, materials and safety.</span>
           </footer>
     </main>
   );

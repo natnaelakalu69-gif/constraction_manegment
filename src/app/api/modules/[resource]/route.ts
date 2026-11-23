@@ -1,14 +1,22 @@
 import { NextResponse } from "next/server";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
-  budgets, dailyFollowUps, dailyPlanTasks, dailyPlans, dailySiteReports, equipment, equipmentUsage,
-  inventoryTransactions, materials, progressRecords, projectCosts, projects, qualityDefects,
-  qualityInspections, safetyIncidents, safetyInspections, workPackages,
+  budgets, dailyFollowUps, dailyPlanTasks, dailyPlans, dailySiteReports, dayLaborWages,
+  equipment, equipmentUsage, inventoryTransactions, materials, progressRecords, projectCosts,
+  projects, qualityDefects, qualityInspections, safetyIncidents, safetyInspections,
+  teamMembers, wagePayments, workPackages, workTeams, workTasks, workers as workforce,
 } from "@/db/schema/enterprise";
+import {
+  ASSIGNEE_TYPES, EXPENSE_CATEGORIES, EXPENSE_CATEGORY_LABELS, TASK_PRIORITIES, TASK_STATUSES,
+  TASK_STATUS_LABELS, WAGE_PAYMENT_STATUS_LABELS, type ExpenseCategory, type TaskStatus,
+} from "@/lib/domain";
 import { isUniqueConstraintViolation } from "@/lib/postgres-errors";
 import { getWorkspaceCompanyId } from "@/lib/workspace";
 import { businessCodeError, isValidBusinessCode } from "@/lib/validation";
+import {
+  calculateWageTotals, paymentStatusFor, resolveOvertimeRate, wageDisplayLabel, wageLabels,
+} from "@/server/services/payroll";
 
 class BadRequest extends Error {}
 
@@ -135,7 +143,16 @@ const resources: Record<string, Resource> = {
     }).returning().then(([row]) => row),
   },
   budgets: {
-    list: (companyId) => db.select().from(budgets).where(eq(budgets.companyId, companyId)).orderBy(desc(budgets.id)),
+    list: async (companyId) => {
+      const rows = await db.select().from(budgets)
+        .leftJoin(projects, eq(budgets.projectId, projects.id))
+        .where(eq(budgets.companyId, companyId))
+        .orderBy(desc(budgets.id));
+      return rows.map(({ project_budgets: budget, projects: project }) => {
+        const projectName = project?.name ?? `Project #${budget.projectId}`;
+        return { ...budget, projectName, displayLabel: `${projectName} · ${budget.costCode}` };
+      });
+    },
     create: (b, companyId) => db.insert(budgets).values({
       companyId,
       projectId: int(b, "projectId")!,
@@ -145,11 +162,23 @@ const resources: Record<string, Resource> = {
     }).returning().then(([row]) => row),
   },
   "project-costs": {
-    list: (companyId) => db.select().from(projectCosts).where(eq(projectCosts.companyId, companyId)).orderBy(desc(projectCosts.id)),
+    list: async (companyId) => {
+      const rows = await db.select().from(projectCosts)
+        .leftJoin(projects, eq(projectCosts.projectId, projects.id))
+        .where(eq(projectCosts.companyId, companyId))
+        .orderBy(desc(projectCosts.id));
+      return rows.map(({ project_costs: cost, projects: project }) => ({
+        ...cost,
+        projectName: project?.name ?? `Project #${cost.projectId}`,
+        expenseCategoryLabel: EXPENSE_CATEGORY_LABELS[cost.expenseCategory as ExpenseCategory] ?? cost.expenseCategory,
+      }));
+    },
     create: (b, companyId) => db.insert(projectCosts).values({
       companyId,
       projectId: int(b, "projectId")!,
+      budgetId: int(b, "budgetId", false),
       category: requiredText(b, "category"),
+      expenseCategory: oneOf(b, "expenseCategory", EXPENSE_CATEGORIES, "other"),
       description: text(b, "description"),
       amount: requiredNumber(b, "amount"),
       incurredOn: date(b, "incurredOn", true)!,
@@ -304,6 +333,176 @@ const resources: Record<string, Resource> = {
       status: oneOf(b, "status", APPROVAL_STATES, "submitted"),
       notes: text(b, "notes"),
     }).returning().then(([row]) => row),
+  },
+  workforce: {
+    list: (companyId) => db.select().from(workforce).where(eq(workforce.companyId, companyId)).orderBy(workforce.fullName).then((rows) =>
+      rows.map((row) => ({ ...row, displayLabel: `${row.fullName} (${row.workerCode})` }))),
+    create: (b, companyId) => db.insert(workforce).values({
+      companyId,
+      workerCode: businessCode(b, "workerCode", "Worker code"),
+      fullName: requiredText(b, "fullName"),
+      phone: text(b, "phone"),
+      employmentType: oneOf(b, "employmentType", ["employee", "day_labor", "contractor"] as const, "employee"),
+      dailyRate: numeric(b, "dailyRate", "0")!,
+    }).returning().then(([row]) => row),
+  },
+  teams: {
+    list: (companyId) => db.select().from(workTeams).where(eq(workTeams.companyId, companyId)).orderBy(workTeams.name).then((rows) =>
+      rows.map((row) => ({ ...row, displayLabel: `${row.name} (${row.code})` }))),
+    create: (b, companyId) => db.insert(workTeams).values({
+      companyId,
+      code: requiredText(b, "code"),
+      name: requiredText(b, "name"),
+      supervisorName: text(b, "supervisorName"),
+      notes: text(b, "notes"),
+    }).returning().then(([row]) => row),
+  },
+  "team-members": {
+    list: async (companyId) => {
+      const rows = await db.select().from(teamMembers)
+        .leftJoin(workTeams, eq(teamMembers.teamId, workTeams.id))
+        .leftJoin(workforce, eq(teamMembers.workerId, workforce.id))
+        .where(eq(teamMembers.companyId, companyId))
+        .orderBy(desc(teamMembers.id));
+      return rows.map(({ team_members: member, work_teams: team, workforce: worker }) => ({
+        ...member,
+        teamName: team?.name ?? `Team #${member.teamId}`,
+        workerName: worker?.fullName ?? `Worker #${member.workerId}`,
+      }));
+    },
+    create: (b, companyId) => db.insert(teamMembers).values({
+      companyId,
+      teamId: int(b, "teamId")!,
+      workerId: int(b, "workerId")!,
+    }).returning().then(([row]) => row),
+  },
+  "work-tasks": {
+    list: async (companyId) => {
+      const rows = await db.select().from(workTasks)
+        .leftJoin(workforce, eq(workTasks.workerId, workforce.id))
+        .leftJoin(workTeams, eq(workTasks.teamId, workTeams.id))
+        .where(eq(workTasks.companyId, companyId))
+        .orderBy(sql`${workTasks.deadline} asc nulls last`, desc(workTasks.id));
+      return rows.map(({ work_tasks: task, workforce: worker, work_teams: team }) => ({
+        ...task,
+        assigneeName: task.assigneeType === "worker"
+          ? (worker?.fullName ?? `Worker #${task.workerId}`)
+          : (team?.name ?? `Team #${task.teamId}`),
+        statusLabel: TASK_STATUS_LABELS[task.status as TaskStatus] ?? task.status,
+      }));
+    },
+    create: async (b, companyId) => {
+      const assigneeType = oneOf(b, "assigneeType", ASSIGNEE_TYPES, "worker");
+      const [row] = await db.insert(workTasks).values({
+        companyId,
+        projectId: int(b, "projectId", false),
+        siteId: int(b, "siteId", false),
+        title: requiredText(b, "title"),
+        description: text(b, "description"),
+        assigneeType,
+        workerId: assigneeType === "worker" ? int(b, "workerId") : null,
+        teamId: assigneeType === "team" ? int(b, "teamId") : null,
+        supervisorName: requiredText(b, "supervisorName"),
+        priority: oneOf(b, "priority", TASK_PRIORITIES, "normal"),
+        status: oneOf(b, "status", TASK_STATUSES, "pending"),
+        deadline: date(b, "deadline"),
+      }).returning();
+      return row;
+    },
+  },
+  "day-labor-wages": {
+    list: async (companyId) => {
+      const [rows, labels] = await Promise.all([
+        db.select().from(dayLaborWages).where(eq(dayLaborWages.companyId, companyId)).orderBy(desc(dayLaborWages.periodEnd), desc(dayLaborWages.id)),
+        wageLabels(companyId),
+      ]);
+      return rows.map((row) => ({
+        ...row,
+        ...calculateWageTotals(row),
+        paymentStatusLabel: WAGE_PAYMENT_STATUS_LABELS[row.paymentStatus] ?? row.paymentStatus,
+        displayLabel: wageDisplayLabel(row, labels),
+      }));
+    },
+    create: async (b, companyId) => {
+      const periodStart = date(b, "periodStart", true)!;
+      const periodEnd = date(b, "periodEnd", true)!;
+      if (periodEnd < periodStart) throw new BadRequest("periodEnd must be on or after periodStart.");
+
+      const dailyRate = requiredNumber(b, "dailyRate");
+      const overtimeRate = resolveOvertimeRate(dailyRate, numeric(b, "overtimeRate"));
+      const totals = calculateWageTotals({
+        workingDays: requiredNumber(b, "workingDays"),
+        dailyRate,
+        overtimeHours: numeric(b, "overtimeHours", "0"),
+        overtimeRate,
+        approvedOvertime: numeric(b, "approvedOvertime", "0"),
+        approvedDeductions: numeric(b, "approvedDeductions", "0"),
+      });
+      const [row] = await db.insert(dayLaborWages).values({
+        companyId,
+        workerId: int(b, "workerId")!,
+        periodStart,
+        periodEnd,
+        workingDays: requiredNumber(b, "workingDays"),
+        dailyRate,
+        overtimeHours: numeric(b, "overtimeHours", "0")!,
+        overtimeRate,
+        approvedOvertime: numeric(b, "approvedOvertime", "0")!,
+        approvedDeductions: numeric(b, "approvedDeductions", "0")!,
+        total: totals.netPay.toFixed(2),
+        status: oneOf(b, "status", APPROVAL_STATES, "draft"),
+      }).returning();
+      return row;
+    },
+  },
+  "wage-payments": {
+    list: async (companyId) => {
+      const [rows, labels] = await Promise.all([
+        db.select().from(wagePayments).where(eq(wagePayments.companyId, companyId)).orderBy(desc(wagePayments.paymentDate), desc(wagePayments.id)),
+        wageLabels(companyId),
+      ]);
+      const wages = await db.select().from(dayLaborWages).where(eq(dayLaborWages.companyId, companyId));
+      const wagesById = new Map(wages.map((wage) => [wage.id, wage]));
+      return rows.map((row) => {
+        const wage = wagesById.get(row.wageId);
+        return { ...row, wageLabel: wage ? wageDisplayLabel(wage, labels) : `Wage #${row.wageId}` };
+      });
+    },
+    create: async (b, companyId) => {
+      const wageId = int(b, "wageId")!;
+      const amount = requiredNumber(b, "amount");
+      if (Number(amount) <= 0) throw new BadRequest("amount must be greater than zero.");
+
+      return db.transaction(async (tx) => {
+        const [wage] = await tx.select().from(dayLaborWages)
+          .where(and(eq(dayLaborWages.id, wageId), eq(dayLaborWages.companyId, companyId)));
+        if (!wage) throw new BadRequest("Wage record not found.");
+
+        const [payment] = await tx.insert(wagePayments).values({
+          companyId,
+          wageId,
+          amount,
+          paymentDate: date(b, "paymentDate", true)!,
+          method: text(b, "method") ?? "cash",
+          reference: text(b, "reference"),
+          notes: text(b, "notes"),
+        }).returning();
+
+        const [aggregate] = await tx.select({ paid: sql<string>`coalesce(sum(${wagePayments.amount}), 0)` })
+          .from(wagePayments)
+          .where(and(eq(wagePayments.wageId, wageId), eq(wagePayments.companyId, companyId)));
+        const paidAmount = Number(aggregate?.paid ?? 0);
+        const status = paymentStatusFor(paidAmount, wage.total);
+        await tx.update(dayLaborWages).set({
+          paidAmount: paidAmount.toFixed(2),
+          paymentStatus: status,
+          paidAt: status === "paid" ? new Date() : null,
+          updatedAt: new Date(),
+        }).where(and(eq(dayLaborWages.id, wageId), eq(dayLaborWages.companyId, companyId)));
+
+        return payment;
+      });
+    },
   },
 };
 
