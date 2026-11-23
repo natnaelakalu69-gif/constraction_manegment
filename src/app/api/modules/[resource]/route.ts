@@ -2,20 +2,21 @@ import { NextResponse } from "next/server";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
-  budgets, dailyFollowUps, dailyPlanTasks, dailyPlans, dailySiteReports, dayLaborWages,
-  equipment, equipmentUsage, inventoryTransactions, materials, progressRecords, projectCosts,
-  projects, qualityDefects, qualityInspections, safetyIncidents, safetyInspections,
-  teamMembers, wagePayments, workPackages, workTeams, workTasks, workers as workforce,
+  attendanceRules, budgets, dailyFollowUps, dailyPlanTasks, dailyPlans, dailySiteReports, dayLaborWages,
+  departments, equipment, equipmentUsage, inventoryTransactions, materials, progressRecords, projectCosts,
+  projects, qualityDefects, qualityInspections, safetyIncidents, safetyInspections, shifts, sites,
+  teamMembers, wagePayments, wageSettings, workPackages, workTeams, workTasks, workers as workforce,
 } from "@/db/schema/enterprise";
 import {
-  ASSIGNEE_TYPES, EXPENSE_CATEGORIES, EXPENSE_CATEGORY_LABELS, TASK_PRIORITIES, TASK_STATUSES,
-  TASK_STATUS_LABELS, WAGE_PAYMENT_STATUS_LABELS, type ExpenseCategory, type TaskStatus,
+  ASSIGNEE_TYPES, BOOLEAN_OPTIONS, EXPENSE_CATEGORIES, EXPENSE_CATEGORY_LABELS, PAYMENT_FREQUENCIES,
+  RECORD_STATUSES, TASK_PRIORITIES, TASK_STATUSES, TASK_STATUS_LABELS, WAGE_PAYMENT_STATUS_LABELS,
+  type ExpenseCategory, type TaskStatus,
 } from "@/lib/domain";
-import { isUniqueConstraintViolation } from "@/lib/postgres-errors";
+import { isForeignKeyViolation, isUniqueConstraintViolation } from "@/lib/postgres-errors";
 import { getWorkspaceCompanyId } from "@/lib/workspace";
 import { businessCodeError, isValidBusinessCode } from "@/lib/validation";
 import {
-  calculateWageTotals, paymentStatusFor, resolveOvertimeRate, wageDisplayLabel, wageLabels,
+  calculateWageTotals, getWageConfig, paymentStatusFor, resolveOvertimeRate, wageDisplayLabel, wageLabels,
 } from "@/server/services/payroll";
 
 class BadRequest extends Error {}
@@ -94,6 +95,33 @@ function oneOf<T extends string>(b: Body, key: string, allowed: readonly T[], fa
   }
   if (!allowed.includes(value as T)) throw new BadRequest(`${key} must be one of: ${allowed.join(", ")}.`);
   return value as T;
+}
+
+function nonNegativeInt(b: Body, key: string, fallback: number): number {
+  const value = b[key];
+  const raw = typeof value === "number" || typeof value === "string" ? String(value).trim() : "";
+  if (!raw) return fallback;
+  if (!/^\d+$/.test(raw) || !Number.isInteger(Number(raw))) {
+    throw new BadRequest(`${key} must be a non-negative integer.`);
+  }
+  return Number(raw);
+}
+
+function timeValue(b: Body, key: string): string {
+  const value = requiredText(b, key);
+  if (!/^\d{2}:\d{2}(:\d{2})?$/.test(value)) throw new BadRequest(`${key} must be a time (HH:MM).`);
+  return value;
+}
+
+function bool(b: Body, key: string, fallback: boolean): boolean {
+  const value = b[key];
+  if (value === null || value === undefined || value === "") return fallback;
+  if (typeof value === "boolean") return value;
+  const raw = String(value).trim().toLowerCase();
+  if (!BOOLEAN_OPTIONS.includes(raw as (typeof BOOLEAN_OPTIONS)[number])) {
+    throw new BadRequest(`${key} must be true or false.`);
+  }
+  return raw === "true";
 }
 
 const APPROVAL_STATES = ["draft", "submitted", "approved", "rejected", "cancelled"] as const;
@@ -428,8 +456,9 @@ const resources: Record<string, Resource> = {
       const periodEnd = date(b, "periodEnd", true)!;
       if (periodEnd < periodStart) throw new BadRequest("periodEnd must be on or after periodStart.");
 
+      const config = await getWageConfig(companyId);
       const dailyRate = requiredNumber(b, "dailyRate");
-      const overtimeRate = resolveOvertimeRate(dailyRate, numeric(b, "overtimeRate"));
+      const overtimeRate = resolveOvertimeRate(dailyRate, numeric(b, "overtimeRate"), config);
       const totals = calculateWageTotals({
         workingDays: requiredNumber(b, "workingDays"),
         dailyRate,
@@ -437,7 +466,7 @@ const resources: Record<string, Resource> = {
         overtimeRate,
         approvedOvertime: numeric(b, "approvedOvertime", "0"),
         approvedDeductions: numeric(b, "approvedDeductions", "0"),
-      });
+      }, config);
       const [row] = await db.insert(dayLaborWages).values({
         companyId,
         workerId: int(b, "workerId")!,
@@ -504,6 +533,81 @@ const resources: Record<string, Resource> = {
       });
     },
   },
+  sites: {
+    list: async (companyId) => {
+      const rows = await db.select().from(sites)
+        .leftJoin(projects, eq(sites.projectId, projects.id))
+        .where(eq(sites.companyId, companyId))
+        .orderBy(desc(sites.id));
+      return rows.map(({ project_sites: site, projects: project }) => ({
+        ...site,
+        projectName: project?.name ?? `Project #${site.projectId}`,
+      }));
+    },
+    create: (b, companyId) => db.insert(sites).values({
+      companyId,
+      projectId: int(b, "projectId")!,
+      code: requiredText(b, "code"),
+      name: requiredText(b, "name"),
+      location: text(b, "location"),
+      status: oneOf(b, "status", RECORD_STATUSES, "active"),
+    }).returning().then(([row]) => row),
+  },
+  departments: {
+    list: (companyId) => db.select().from(departments)
+      .where(eq(departments.companyId, companyId))
+      .orderBy(departments.name, departments.id),
+    create: (b, companyId) => db.insert(departments).values({
+      companyId,
+      branchId: int(b, "branchId", false),
+      parentId: int(b, "parentId", false),
+      code: requiredText(b, "code"),
+      name: requiredText(b, "name"),
+    }).returning().then(([row]) => row),
+  },
+  shifts: {
+    list: (companyId) => db.select().from(shifts)
+      .where(eq(shifts.companyId, companyId))
+      .orderBy(shifts.startsAt, shifts.name),
+    create: (b, companyId) => db.insert(shifts).values({
+      companyId,
+      name: requiredText(b, "name"),
+      startsAt: timeValue(b, "startsAt"),
+      endsAt: timeValue(b, "endsAt"),
+      breakMinutes: nonNegativeInt(b, "breakMinutes", 0),
+    }).returning().then(([row]) => row),
+  },
+  "attendance-rules": {
+    list: (companyId) => db.select().from(attendanceRules)
+      .where(eq(attendanceRules.companyId, companyId))
+      .orderBy(desc(attendanceRules.id)),
+    create: (b, companyId) => db.insert(attendanceRules).values({
+      companyId,
+      name: requiredText(b, "name"),
+      shiftId: int(b, "shiftId", false),
+      lateAfterMinutes: nonNegativeInt(b, "lateAfterMinutes", 15),
+      earlyLeaveAfterMinutes: nonNegativeInt(b, "earlyLeaveAfterMinutes", 15),
+      overtimeStartsAfterMinutes: nonNegativeInt(b, "overtimeStartsAfterMinutes", 480),
+      standardHoursPerDay: numeric(b, "standardHoursPerDay", "8")!,
+      markAbsentAfterMinutes: nonNegativeInt(b, "markAbsentAfterMinutes", 60),
+      isActive: bool(b, "isActive", true),
+    }).returning().then(([row]) => row),
+  },
+  "wage-settings": {
+    list: (companyId) => db.select().from(wageSettings)
+      .where(eq(wageSettings.companyId, companyId))
+      .orderBy(desc(wageSettings.id)),
+    create: (b, companyId) => db.insert(wageSettings).values({
+      companyId,
+      name: requiredText(b, "name"),
+      currency: (text(b, "currency") ?? "ETB").toUpperCase().slice(0, 3),
+      regularHoursPerDay: numeric(b, "regularHoursPerDay", "8")!,
+      overtimeMultiplier: numeric(b, "overtimeMultiplier", "1.5")!,
+      paymentFrequency: oneOf(b, "paymentFrequency", PAYMENT_FREQUENCIES, "weekly"),
+      defaultDailyRate: numeric(b, "defaultDailyRate", "0")!,
+      isActive: bool(b, "isActive", true),
+    }).returning().then(([row]) => row),
+  },
 };
 
 export async function GET(_req: Request, ctx: { params: Promise<{ resource: string }> }) {
@@ -535,6 +639,9 @@ export async function POST(req: Request, ctx: { params: Promise<{ resource: stri
     }
     if (isUniqueConstraintViolation(error)) {
       return NextResponse.json({ error: "A record with that code already exists." }, { status: 409 });
+    }
+    if (isForeignKeyViolation(error)) {
+      return NextResponse.json({ error: "A referenced record does not exist." }, { status: 409 });
     }
     console.error("Failed to create module record:", error);
     return NextResponse.json({ error: "The record could not be created." }, { status: 500 });

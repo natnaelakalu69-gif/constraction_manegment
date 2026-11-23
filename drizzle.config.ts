@@ -1,5 +1,9 @@
-import "dotenv/config";
+import { config } from "dotenv";
 import { defineConfig } from "drizzle-kit";
+
+// Next.js loads .env.local, so Drizzle should use the same configuration.
+config({ path: ".env.local" });
+config();
 
 export default defineConfig({
   dialect: "postgresql",

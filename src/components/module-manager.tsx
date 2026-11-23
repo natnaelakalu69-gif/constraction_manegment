@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, type FormEvent, type InputHTMLAttributes } from "react";
+import { useCallback, useEffect, useState, type FormEvent, type InputHTMLAttributes, type ReactNode } from "react";
 import { fetchJson } from "@/lib/client-api";
 import {
   CODE_MIN_DIGITS,
@@ -292,7 +292,14 @@ function ModuleSectionCard({ section }: { section: ModuleSection }) {
   );
 }
 
-export default function ModuleManager({ title, subtitle, sections }: { title: string; subtitle: string; sections: ModuleSection[] }) {
+export default function ModuleManager({
+  title, subtitle, sections, children,
+}: {
+  title: string;
+  subtitle: string;
+  sections: ModuleSection[];
+  children?: ReactNode;
+}) {
   return (
     <main className="management-main">
       <section className="management-heading">
@@ -302,6 +309,7 @@ export default function ModuleManager({ title, subtitle, sections }: { title: st
           <p className="page-subtitle">{subtitle}</p>
         </div>
       </section>
+      {children}
       {sections.map((section) => <ModuleSectionCard key={section.key} section={section} />)}
     </main>
   );

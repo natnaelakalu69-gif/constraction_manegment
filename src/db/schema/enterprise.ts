@@ -81,6 +81,12 @@ export const workerAssignments = pgTable("worker_assignments", {
 export const shifts = pgTable("shifts", {
   id: serial("id").primaryKey(), companyId: integer("company_id").notNull().references(() => companies.id), name: varchar("name", { length: 100 }).notNull(), startsAt: time("starts_at").notNull(), endsAt: time("ends_at").notNull(), breakMinutes: integer("break_minutes").notNull().default(0), ...auditColumns,
 });
+export const attendanceRules = pgTable("attendance_rules", {
+  id: serial("id").primaryKey(), companyId: integer("company_id").notNull().references(() => companies.id), name: varchar("name", { length: 120 }).notNull(), shiftId: integer("shift_id").references(() => shifts.id),
+  lateAfterMinutes: integer("late_after_minutes").notNull().default(15), earlyLeaveAfterMinutes: integer("early_leave_after_minutes").notNull().default(15),
+  overtimeStartsAfterMinutes: integer("overtime_starts_after_minutes").notNull().default(480), standardHoursPerDay: numeric("standard_hours_per_day", { precision: 5, scale: 2 }).notNull().default("8"),
+  markAbsentAfterMinutes: integer("mark_absent_after_minutes").notNull().default(60), isActive: boolean("is_active").notNull().default(true), ...auditColumns,
+}, (t) => ({ companyNameUnique: uniqueIndex("attendance_rules_company_name_unique").on(t.companyId, t.name), companyActiveIdx: index("attendance_rules_company_active_idx").on(t.companyId, t.isActive) }));
 export const attendanceRecords = pgTable("workforce_attendance", {
   id: serial("id").primaryKey(), companyId: integer("company_id").notNull().references(() => companies.id), workerId: integer("worker_id").notNull().references(() => workers.id), projectId: integer("project_id").references(() => projects.id), siteId: integer("site_id").references(() => sites.id), shiftId: integer("shift_id").references(() => shifts.id), attendanceDate: date("attendance_date").notNull(), checkIn: timestamp("check_in", { withTimezone: true }), checkOut: timestamp("check_out", { withTimezone: true }), state: attendanceState("state").notNull(), overtimeMinutes: integer("overtime_minutes").notNull().default(0), notes: text("notes"), recordedBy: integer("recorded_by").references(() => appUsers.id), ...auditColumns,
 }, (t) => ({ workerDateUnique: uniqueIndex("workforce_attendance_worker_date_unique").on(t.workerId, t.attendanceDate), companyDateIdx: index("workforce_attendance_company_date_idx").on(t.companyId, t.attendanceDate), siteDateIdx: index("workforce_attendance_site_date_idx").on(t.siteId, t.attendanceDate) }));
@@ -91,6 +97,12 @@ export const dayLaborWages = pgTable("day_labor_wages", {
 export const wagePayments = pgTable("wage_payments", {
   id: serial("id").primaryKey(), companyId: integer("company_id").notNull().references(() => companies.id), wageId: integer("wage_id").notNull().references(() => dayLaborWages.id, { onDelete: "cascade" }), amount: money("amount").notNull(), paymentDate: date("payment_date").notNull(), method: varchar("method", { length: 40 }).notNull().default("cash"), reference: varchar("reference", { length: 100 }), notes: text("notes"), recordedBy: integer("recorded_by").references(() => appUsers.id), ...auditColumns,
 }, (t) => ({ wageIdx: index("wage_payments_wage_idx").on(t.wageId), companyDateIdx: index("wage_payments_company_date_idx").on(t.companyId, t.paymentDate) }));
+
+export const wageSettings = pgTable("wage_settings", {
+  id: serial("id").primaryKey(), companyId: integer("company_id").notNull().references(() => companies.id), name: varchar("name", { length: 120 }).notNull(), currency: varchar("currency", { length: 3 }).notNull().default("ETB"),
+  regularHoursPerDay: numeric("regular_hours_per_day", { precision: 5, scale: 2 }).notNull().default("8"), overtimeMultiplier: numeric("overtime_multiplier", { precision: 5, scale: 2 }).notNull().default("1.5"),
+  paymentFrequency: varchar("payment_frequency", { length: 30 }).notNull().default("weekly"), defaultDailyRate: money("default_daily_rate").notNull().default("0"), isActive: boolean("is_active").notNull().default(true), ...auditColumns,
+}, (t) => ({ companyNameUnique: uniqueIndex("wage_settings_company_name_unique").on(t.companyId, t.name), companyActiveIdx: index("wage_settings_company_active_idx").on(t.companyId, t.isActive) }));
 
 export const workPackages = pgTable("work_packages", {
   id: serial("id").primaryKey(), companyId: integer("company_id").notNull().references(() => companies.id), projectId: integer("project_id").notNull().references(() => projects.id), parentId: integer("parent_id"), code: varchar("code", { length: 50 }).notNull(), name: varchar("name", { length: 200 }).notNull(), plannedQuantity: qty("planned_quantity").notNull().default("0"), unit: varchar("unit", { length: 30 }).notNull(), plannedStart: date("planned_start"), plannedEnd: date("planned_end"), ...auditColumns,
@@ -203,7 +215,7 @@ export const auditLogs = pgTable("audit_logs", {
 
 export const enterpriseSchema = {
   companies, branches, departments, positions, roles, permissions, rolePermissions, appUsers, userRoles, userSessions,
-  projects, projectMembers, sites, siteSections, workers, workerAssignments, shifts, attendanceRecords, dayLaborWages, wagePayments,
+  projects, projectMembers, sites, siteSections, workers, workerAssignments, shifts, attendanceRules, attendanceRecords, dayLaborWages, wagePayments, wageSettings,
   workPackages, progressRecords, materialCategories, materials, suppliers, purchaseRequests, purchaseOrders, inventoryTransactions,
   equipment, equipmentUsage, equipmentMaintenance, contractors, contracts, contractorPayments, budgets, projectCosts, paymentRequests,
   safetyIncidents, qualityInspections, qualityDefects, documents, workflowTasks, workTeams, teamMembers, workTasks,

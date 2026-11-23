@@ -451,6 +451,11 @@ export default function OperationsDashboard() {
                 <div><strong>Roles &amp; access</strong><p>Roles, permissions and user assignments.</p></div>
                 <span className="module-status">Open</span>
               </Link>
+              <Link className="module-card" href="/settings">
+                <span className="module-icon module-indigo"><Icon name="plan" /></span>
+                <div><strong>Settings</strong><p>Company profile, sites, departments, shifts, attendance rules and wages.</p></div>
+                <span className="module-status">Open</span>
+              </Link>
               <Link className="module-card" href="/projects">
                 <span className="module-icon module-indigo"><Icon name="projects" /></span>
                 <div><strong>Project controls</strong><p>Budgets, work packages, and progress tracking.</p></div>

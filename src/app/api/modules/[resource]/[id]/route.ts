@@ -2,27 +2,35 @@ import { NextResponse } from "next/server";
 import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
-  budgets, dailyFollowUps, dailyPlanTasks, dailyPlans, dailySiteReports, dayLaborWages,
-  equipment, equipmentUsage, inventoryTransactions, materials, progressRecords, projectCosts,
-  projects, qualityDefects, qualityInspections, safetyIncidents, safetyInspections, teamMembers,
-  wagePayments, workPackages, workTeams, workTasks, workers as workforce,
+  attendanceRules, budgets, dailyFollowUps, dailyPlanTasks, dailyPlans, dailySiteReports, dayLaborWages,
+  departments, equipment, equipmentUsage, inventoryTransactions, materials, progressRecords, projectCosts,
+  projects, qualityDefects, qualityInspections, safetyIncidents, safetyInspections, shifts, sites, teamMembers,
+  wagePayments, wageSettings, workPackages, workTeams, workTasks, workers as workforce,
 } from "@/db/schema/enterprise";
 import {
-  ASSIGNEE_TYPES, EXPENSE_CATEGORIES, TASK_PRIORITIES, TASK_STATUSES, WAGE_PAYMENT_STATUSES,
+  ASSIGNEE_TYPES, BOOLEAN_OPTIONS, EXPENSE_CATEGORIES, PAYMENT_FREQUENCIES, RECORD_STATUSES,
+  TASK_PRIORITIES, TASK_STATUSES, WAGE_PAYMENT_STATUSES,
 } from "@/lib/domain";
 import { isForeignKeyViolation, isUniqueConstraintViolation } from "@/lib/postgres-errors";
 import { getWorkspaceCompanyId } from "@/lib/workspace";
 import { businessCodeError, isValidBusinessCode, isValidPhone, phoneError } from "@/lib/validation";
-import { calculateWageTotals, paymentStatusFor, resolveOvertimeRate } from "@/server/services/payroll";
+import { calculateWageTotals, getWageConfig, paymentStatusFor, resolveOvertimeRate } from "@/server/services/payroll";
 
 class BadRequest extends Error {}
 
 type Body = Record<string, unknown>;
-type FieldType = "text" | "int" | "number" | "date" | "datetime" | "enum";
+type FieldType = "text" | "int" | "nonNegativeInt" | "number" | "date" | "datetime" | "time" | "boolean" | "enum";
 type FieldSpec = { type: FieldType; allowed?: readonly string[]; required?: boolean; format?: "businessCode" | "phone" };
 
 const APPROVAL = ["draft", "submitted", "approved", "rejected", "cancelled"] as const;
 const INVENTORY_MOVEMENTS = ["receipt", "issue", "return", "transfer_in", "transfer_out", "adjustment", "wastage"] as const;
+
+/** Settings columns have database defaults but are NOT NULL: an empty form value leaves them unchanged. */
+const KEEP_UNCHANGED_WHEN_EMPTY = new Set([
+  "status", "isActive", "breakMinutes", "lateAfterMinutes", "earlyLeaveAfterMinutes",
+  "overtimeStartsAfterMinutes", "standardHoursPerDay", "markAbsentAfterMinutes",
+  "currency", "regularHoursPerDay", "overtimeMultiplier", "defaultDailyRate",
+]);
 
 const TABLES: Record<string, any> = {
   projects,
@@ -48,6 +56,11 @@ const TABLES: Record<string, any> = {
   "work-tasks": workTasks,
   "day-labor-wages": dayLaborWages,
   "wage-payments": wagePayments,
+  sites,
+  departments,
+  shifts,
+  "attendance-rules": attendanceRules,
+  "wage-settings": wageSettings,
 };
 
 const EDITABLE: Record<string, Record<string, FieldSpec>> = {
@@ -174,6 +187,32 @@ const EDITABLE: Record<string, Record<string, FieldSpec>> = {
     amount: { type: "number", required: true }, paymentDate: { type: "date", required: true },
     method: { type: "text" }, reference: { type: "text" }, notes: { type: "text" },
   },
+  sites: {
+    projectId: { type: "int", required: true }, code: { type: "text", required: true },
+    name: { type: "text", required: true }, location: { type: "text" },
+    status: { type: "enum", allowed: RECORD_STATUSES },
+  },
+  departments: {
+    code: { type: "text", required: true }, name: { type: "text", required: true },
+    branchId: { type: "int" }, parentId: { type: "int" },
+  },
+  shifts: {
+    name: { type: "text", required: true },
+    startsAt: { type: "time", required: true }, endsAt: { type: "time", required: true },
+    breakMinutes: { type: "nonNegativeInt" },
+  },
+  "attendance-rules": {
+    name: { type: "text", required: true }, shiftId: { type: "int" },
+    lateAfterMinutes: { type: "nonNegativeInt" }, earlyLeaveAfterMinutes: { type: "nonNegativeInt" },
+    overtimeStartsAfterMinutes: { type: "nonNegativeInt" }, standardHoursPerDay: { type: "number" },
+    markAbsentAfterMinutes: { type: "nonNegativeInt" }, isActive: { type: "boolean" },
+  },
+  "wage-settings": {
+    name: { type: "text", required: true }, currency: { type: "text" },
+    regularHoursPerDay: { type: "number" }, overtimeMultiplier: { type: "number" },
+    paymentFrequency: { type: "enum", allowed: PAYMENT_FREQUENCIES },
+    defaultDailyRate: { type: "number" }, isActive: { type: "boolean" },
+  },
 };
 
 async function syncWagePaymentStatus(wageId: number, companyId: number) {
@@ -206,6 +245,13 @@ function coerce(value: unknown, spec: FieldSpec, key: string) {
     if (!/^\d+$/.test(raw) || !Number.isInteger(parsed) || parsed <= 0) throw new BadRequest(`${key} must be a positive integer.`);
     return parsed;
   }
+  if (spec.type === "nonNegativeInt") {
+    const raw = typeof value === "number" || typeof value === "string" ? String(value).trim() : "";
+    if (!/^\d+$/.test(raw) || !Number.isInteger(Number(raw))) {
+      throw new BadRequest(`${key} must be a non-negative integer.`);
+    }
+    return Number(raw);
+  }
   if (spec.type === "number") {
     const raw = typeof value === "number" || typeof value === "string" ? String(value).trim() : "";
     if (!raw || Number.isNaN(Number(raw))) throw new BadRequest(`${key} must be a number.`);
@@ -220,6 +266,19 @@ function coerce(value: unknown, spec: FieldSpec, key: string) {
     const parsed = new Date(String(value));
     if (Number.isNaN(parsed.getTime())) throw new BadRequest(`${key} must be a valid date and time.`);
     return parsed;
+  }
+  if (spec.type === "time") {
+    const raw = String(value).trim();
+    if (!/^\d{2}:\d{2}(:\d{2})?$/.test(raw)) throw new BadRequest(`${key} must be a time (HH:MM).`);
+    return raw;
+  }
+  if (spec.type === "boolean") {
+    if (typeof value === "boolean") return value;
+    const raw = String(value).trim().toLowerCase();
+    if (!BOOLEAN_OPTIONS.includes(raw as (typeof BOOLEAN_OPTIONS)[number])) {
+      throw new BadRequest(`${key} must be true or false.`);
+    }
+    return raw === "true";
   }
   const raw = String(value).trim();
   if (spec.format === "businessCode" && !isValidBusinessCode(raw)) throw new BadRequest(businessCodeError(key));
@@ -247,9 +306,18 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ resource: str
     for (const [key, spec] of Object.entries(editable)) {
       if (key in b) values[key] = coerce(b[key], spec, key);
     }
+    if (["sites", "shifts", "attendance-rules", "wage-settings"].includes(resource)) {
+      for (const key of Object.keys(values)) {
+        if (values[key] === null && KEEP_UNCHANGED_WHEN_EMPTY.has(key)) delete values[key];
+      }
+    }
     if (Object.keys(values).length === 0) throw new BadRequest("No valid fields to update.");
 
     const companyId = await getWorkspaceCompanyId();
+
+    if (resource === "wage-settings" && "currency" in values) {
+      values.currency = String(values.currency).toUpperCase().slice(0, 3);
+    }
 
     if (resource === "daily-site-reports" && "status" in values) {
       values.reviewedAt = values.status === "approved" || values.status === "rejected" ? new Date() : null;
@@ -277,8 +345,9 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ resource: str
       if (!existing) return NextResponse.json({ error: "Record not found." }, { status: 404 });
       const merged = { ...existing, ...values } as typeof existing;
       if (merged.periodEnd < merged.periodStart) throw new BadRequest("periodEnd must be on or after periodStart.");
-      const overtimeRate = resolveOvertimeRate(merged.dailyRate, merged.overtimeRate);
-      const totals = calculateWageTotals(merged);
+      const config = await getWageConfig(companyId);
+      const overtimeRate = resolveOvertimeRate(merged.dailyRate, merged.overtimeRate, config);
+      const totals = calculateWageTotals(merged, config);
       values.overtimeRate = overtimeRate;
       values.total = totals.netPay.toFixed(2);
       if (!("paymentStatus" in values)) {

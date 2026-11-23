@@ -23,7 +23,7 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:3000. Run `npm run db:migrate` once `DATABASE_URL` points at your database; migration `0003` adds the task, payroll and expense tables/columns used by the new modules. The currently implemented routes are documented below.
+Open http://localhost:3000. Run `npm run db:migrate` once `DATABASE_URL` points at your database; migrations `0003` and `0004` add the task, payroll, expense and settings tables/columns used by the new modules. The currently implemented routes are documented below.
 
 ## Environment variables
 
@@ -44,7 +44,8 @@ Never commit `.env` or secrets. Production configuration will be completed along
 - `GET /api/reports/daily-operations?date=YYYY-MM-DD` — combined attendance, plans, progress, materials, safety and outstanding issues
 - `GET /api/reports/period?period=daily|weekly|monthly|yearly&date=YYYY-MM-DD` — aggregated operations report for the range containing the anchor date (weekly = Mon–Sun, monthly = calendar month, yearly = calendar year; end date is exclusive; yearly trend buckets by month)
 - `GET /api/reports/executive?date=YYYY-MM-DD` — portfolio KPIs (projects, sites, workforce) plus all four period reports in one response
-- `GET/POST /api/modules/:resource` for `projects`, `work-packages`, `progress-records`, `budgets`, `project-costs`, `materials`, `inventory-transactions`, `equipment`, `equipment-usage`, `safety-incidents`, `quality-inspections`, `quality-defects`, `daily-plans`, `daily-plan-tasks`, `daily-site-reports`, `daily-follow-ups`, `safety-inspections`, `workforce`, `teams`, `team-members`, `work-tasks`, `day-labor-wages`, and `wage-payments`
+- `GET/POST /api/modules/:resource` for `projects`, `work-packages`, `progress-records`, `budgets`, `project-costs`, `materials`, `inventory-transactions`, `equipment`, `equipment-usage`, `safety-incidents`, `quality-inspections`, `quality-defects`, `daily-plans`, `daily-plan-tasks`, `daily-site-reports`, `daily-follow-ups`, `safety-inspections`, `workforce`, `teams`, `team-members`, `work-tasks`, `day-labor-wages`, `wage-payments`, `sites`, `departments`, `shifts`, `attendance-rules`, and `wage-settings`
+- `GET/PATCH /api/settings/company` — company identity, registration details, reporting currency and timezone for the current workspace
 - `PATCH /api/modules/:resource/:id` updates any editable field on every module resource listed above (per-resource field whitelist); `daily-site-reports` also sets `reviewedAt` when status becomes `approved` or `rejected`; wage edits recalculate net pay, and payment edits/deletes resynchronise the wage's paid amount and status
 - `DELETE /api/modules/:resource/:id` deletes a record company-scoped; referenced records return HTTP 409
 - `GET /api/reports/expenses?projectId=…` — budget vs actual by cost code, expense-type totals and overall utilization (`projectId` is optional)
@@ -66,6 +67,7 @@ The management screens provide per-record **Edit** and **Delete** actions: the g
 - `/daily-summary` — operations reports with a period selector: **Daily** shows the detailed daily report (attendance, plans, progress, materials, safety and outstanding issues), while **Weekly**, **Monthly** and **Yearly** show aggregated metrics and trends for the selected range.
 - `/executive-summary` — executive summary with portfolio KPIs, a four-period comparison table, CSS bar charts and current outstanding items.
 - `/roles` — create roles and permissions, grant permissions to roles, create app users, and assign roles to users. Standard roles (Admin, Project Manager, Site Supervisor, Materials Manager, Safety Officer) and their permission grants are seeded on first use.
+- `/settings` — edit company settings and maintain projects/sites, departments, work shifts, attendance rules and wage settings. The newest active wage configuration supplies the regular hours and overtime multiplier used when payroll records are created or edited.
 
 Both report pages include **Download CSV** and **Print / Save PDF** controls. CSV files are UTF-8 with a BOM for spreadsheet compatibility; printing uses a report-only layout that hides the app navigation and buttons.
 

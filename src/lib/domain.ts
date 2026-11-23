@@ -31,3 +31,7 @@ export const EXPENSE_CATEGORY_LABELS: Record<ExpenseCategory, string> = {
   equipment: "Equipment",
   other: "Other",
 };
+
+export const PAYMENT_FREQUENCIES = ["daily", "weekly", "biweekly", "monthly"] as const;
+export const BOOLEAN_OPTIONS = ["true", "false"] as const;
+export const RECORD_STATUSES = ["active", "inactive", "archived"] as const;
