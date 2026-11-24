@@ -7,11 +7,8 @@ import {
   ALL_TRADES,
   EMPLOYMENT_TYPE_MAX_LENGTH,
   EMPLOYMENT_TYPE_OPTIONS,
-  OTHER_EMPLOYMENT_TYPE,
-  isEmploymentType,
   isLegacyEmploymentType,
 } from "@/lib/domain";
-import type { EmploymentType } from "@/lib/domain";
 import {
   PHONE_MIN_DIGITS,
   WORKER_ID_MIN_DIGITS,
@@ -42,8 +39,7 @@ type WorkerForm = {
   department: string;
   site: string;
   workLine: string;
-  employmentType: EmploymentType | "";
-  customEmploymentType: string;
+  employmentType: string;
   dailyWage: string;
   phone: string;
   status: "ACTIVE" | "INACTIVE";
@@ -56,7 +52,6 @@ const emptyForm: WorkerForm = {
   site: "",
   workLine: "",
   employmentType: "",
-  customEmploymentType: "",
   dailyWage: "",
   phone: "",
   status: "ACTIVE",
@@ -88,7 +83,7 @@ export default function WorkersPage() {
 
   const typeFilterOptions = Array.from(
     new Set<string>([
-      ...EMPLOYMENT_TYPE_OPTIONS.filter((type) => type !== OTHER_EMPLOYMENT_TYPE),
+      ...EMPLOYMENT_TYPE_OPTIONS,
       ...workers.map(workerType),
     ])
   );
@@ -127,8 +122,6 @@ export default function WorkersPage() {
   }, []);
 
   function startEdit(worker: Worker) {
-    const currentType = workerType(worker);
-    const isPreset = isEmploymentType(currentType) && currentType !== OTHER_EMPLOYMENT_TYPE;
     setEditingId(worker.id);
     setTypeFilter(ALL_TRADES);
     setForm({
@@ -137,8 +130,7 @@ export default function WorkersPage() {
       department: worker.department ?? "",
       site: worker.site ?? "",
       workLine: worker.workLine ?? "",
-      employmentType: isPreset ? currentType : OTHER_EMPLOYMENT_TYPE,
-      customEmploymentType: isPreset ? "" : currentType,
+      employmentType: workerType(worker),
       dailyWage: worker.dailyWage === null ? "" : String(worker.dailyWage),
       phone: worker.phone ?? "",
       status: worker.status === "INACTIVE" ? "INACTIVE" : "ACTIVE",
@@ -179,26 +171,14 @@ export default function WorkersPage() {
     const editing = editingId !== null;
     const workerCode = form.workerCode.trim();
     const fullName = form.fullName.trim();
-    const selectedType = form.employmentType.trim();
-    const customType = form.customEmploymentType.trim();
-    let employmentType = selectedType;
+    const employmentType = form.employmentType.trim();
 
-    if ((!editing && !workerCode) || !fullName || !selectedType) {
+    if ((!editing && !workerCode) || !fullName || !employmentType) {
       setError("Worker ID, full name, and employment type are required.");
       return;
     }
-    if (selectedType === OTHER_EMPLOYMENT_TYPE) {
-      if (!customType) {
-        setError("Type the employment type in the Other field.");
-        return;
-      }
-      if (customType.length > EMPLOYMENT_TYPE_MAX_LENGTH) {
-        setError(`Employment type must be ${EMPLOYMENT_TYPE_MAX_LENGTH} characters or fewer.`);
-        return;
-      }
-      employmentType = customType;
-    } else if (!isEmploymentType(selectedType)) {
-      setError("Choose a valid employment type.");
+    if (employmentType.length > EMPLOYMENT_TYPE_MAX_LENGTH) {
+      setError(`Employment type must be ${EMPLOYMENT_TYPE_MAX_LENGTH} characters or fewer.`);
       return;
     }
     if (!editing && !isValidWorkerId(workerCode)) {
@@ -266,7 +246,7 @@ export default function WorkersPage() {
         <div className="management-card-heading">
           <h2>{editingId !== null ? "Edit worker" : "Worker registration"}</h2>
           <p>
-            Worker ID ({WORKER_ID_MIN_DIGITS}+ digits), full name, employment type and phone number ({PHONE_MIN_DIGITS}+ digits) are required.
+            Worker ID ({WORKER_ID_MIN_DIGITS}+ digits), full name, employment type (choose from the list or type your own) and phone number ({PHONE_MIN_DIGITS}+ digits) are required.
           </p>
         </div>
         <form className="management-form" onSubmit={addWorker}>
@@ -317,38 +297,20 @@ export default function WorkersPage() {
               placeholder="Line 1"
             />
           </label>
+          <datalist id="employment-type-options">
+            {typeFilterOptions.map((type) => <option key={type} value={type} />)}
+          </datalist>
           <label>
             Employment type
-            <select
+            <input
+              list="employment-type-options"
               value={form.employmentType}
-              onChange={(event) => {
-                const value = event.target.value as EmploymentType | "";
-                setForm({
-                  ...form,
-                  employmentType: value,
-                  customEmploymentType: value === OTHER_EMPLOYMENT_TYPE ? form.customEmploymentType : "",
-                });
-              }}
+              onChange={(event) => setForm({ ...form, employmentType: event.target.value })}
+              maxLength={EMPLOYMENT_TYPE_MAX_LENGTH}
+              placeholder="Select or type a type"
               required
-            >
-              <option value="">Select type</option>
-              {EMPLOYMENT_TYPE_OPTIONS.map((type) => (
-                <option key={type} value={type}>{type}</option>
-              ))}
-            </select>
+            />
           </label>
-          {form.employmentType === OTHER_EMPLOYMENT_TYPE && (
-            <label>
-              Specify employment type
-              <input
-                value={form.customEmploymentType}
-                onChange={(event) => setForm({ ...form, customEmploymentType: event.target.value })}
-                maxLength={EMPLOYMENT_TYPE_MAX_LENGTH}
-                placeholder="e.g. Concrete Finisher"
-                required
-              />
-            </label>
-          )}
           <label>
             Phone
             <input

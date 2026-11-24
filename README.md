@@ -39,11 +39,11 @@ Use **Log out** in the top bar to end the session. The username is stored in the
 
 ## Workforce registration
 
-The **Workforce** page registers workers with these fields: Worker ID (4+ digits), Full name, Department, Site, Work line / team, Employment type, Phone, Daily wage (ETB) and Status. The **Employment type** dropdown contains:
+The **Workforce** page registers workers with these fields: Worker ID (4+ digits), Full name, Department, Site, Work line / team, Employment type, Phone, Daily wage (ETB) and Status. The **Employment type** field is a typeable dropdown: choose one of the suggested values or type your own. The suggestions are:
 
-All Trades, Mason, Carpenter, Electrician, Plumber, Steel Fixer, Welder, Painter, Rigger, Operator, General Laborer, Tiler, Roofer, Scaffolder, HVAC Technician, Surveyor, Heavy Equipment Mechanic, Foreman, Site Supervisor, Safety Officer and Other. Selecting **Other** reveals a text field so you can type a custom worker type; that typed value is saved.
+All Trades, Mason, Carpenter, Electrician, Plumber, Steel Fixer, Welder, Painter, Rigger, Operator, General Laborer, Tiler, Roofer, Scaffolder, HVAC Technician, Surveyor, Heavy Equipment Mechanic, Foreman, Site Supervisor, Safety Officer and Other.
 
-The workers table has a matching employment type filter, with **All Trades** showing every worker. Custom types appear in the filter too. The selected type is also mirrored into the worker's legacy trade/position fields for attendance and reports.
+The workers table has a matching employment type filter, with **All Trades** showing every worker. Saved custom types are added to both the suggestions and the filter. The selected or typed value is also mirrored into the worker's legacy trade/position fields for attendance and reports.
 
 ## Environment variables
 
