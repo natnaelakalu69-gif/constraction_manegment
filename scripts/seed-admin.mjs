@@ -1,6 +1,10 @@
-import "dotenv/config";
+import dotenv from "dotenv";
 import crypto from "node:crypto";
 import pg from "pg";
+
+// Match Next.js env precedence: .env.local overrides .env.
+dotenv.config();
+dotenv.config({ path: ".env.local", override: true });
 
 const { Pool } = pg;
 
