@@ -25,7 +25,7 @@ npm run db:seed
 npm run dev
 ```
 
-Open http://localhost:3000. Migrations `0003` and `0004` add the task, payroll, expense and settings tables/columns used by the new modules. `npm run db:seed` creates the default sign-in account if it does not already exist; the currently implemented routes are documented below.
+Open http://localhost:3000. Migrations `0003` and `0004` add the task, payroll, expense and settings tables/columns used by the new modules. `npm run db:seed` creates the default sign-in account if it does not already exist. Deployed environments also create it automatically on the first sign-in with the default credentials, so Vercel does not need a separate seed step. The currently implemented routes are documented below.
 
 ## Sign in
 
@@ -35,7 +35,7 @@ All pages and API routes require a session. The seeded default credentials are:
 | --- | --- |
 | `admin` | `12345678` |
 
-Use **Log out** in the top bar to end the session. The username is stored in the legacy `users.email` column; set `ADMIN_USERNAME`, `ADMIN_PASSWORD` and `ADMIN_NAME` before running `npm run db:seed` to change the defaults.
+Use **Log out** in the top bar to end the session. The username is stored in the legacy `users.email` column; set `ADMIN_USERNAME`, `ADMIN_PASSWORD` and `ADMIN_NAME` in the deployment environment (or before running `npm run db:seed`) to change the defaults.
 
 ## Environment variables
 
@@ -95,7 +95,7 @@ All enterprise records are scoped to the first company in the database; a defaul
 
 ## Planned development commands
 
-Available scripts are listed in `package.json`. Type checking and linting: `npm run typecheck`, `npm run lint`; application build: `npm run build`. Database commands: `npm run db:generate`, `npm run db:migrate`. Test, seed, Docker, backup, and full production deployment workflows are scheduled for later phases and are not claimed complete.
+Available scripts are listed in `package.json`. Type checking and linting: `npm run typecheck`, `npm run lint`; application build: `npm run build`. Database commands: `npm run db:generate`, `npm run db:migrate`, `npm run db:seed`. Test, Docker, backup, and full production deployment workflows are scheduled for later phases and are not claimed complete.
 
 ## Roles and AI
 
