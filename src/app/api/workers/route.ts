@@ -3,7 +3,7 @@ import { desc } from "drizzle-orm";
 import { db } from "@/db";
 import { workers } from "@/db/schema";
 import { isUniqueConstraintViolation } from "@/lib/postgres-errors";
-import { businessCodeError, isValidBusinessCode } from "@/lib/validation";
+import { isValidWorkerId, workerIdError } from "@/lib/validation";
 import { parseWorkerFields } from "@/lib/worker-input";
 
 export async function GET() {
@@ -26,8 +26,8 @@ export async function POST(req: Request) {
   if (!workerCode) {
     return NextResponse.json({ error: "workerCode is required." }, { status: 400 });
   }
-  if (!isValidBusinessCode(workerCode)) {
-    return NextResponse.json({ error: businessCodeError("Worker code") }, { status: 400 });
+  if (!isValidWorkerId(workerCode)) {
+    return NextResponse.json({ error: workerIdError("Worker ID") }, { status: 400 });
   }
 
   const parsed = parseWorkerFields(fields);

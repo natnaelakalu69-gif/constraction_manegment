@@ -14,12 +14,12 @@ import {
 } from "@/lib/domain";
 import type { EmploymentType } from "@/lib/domain";
 import {
-  CODE_MIN_DIGITS,
   PHONE_MIN_DIGITS,
-  businessCodeError,
-  isValidBusinessCode,
+  WORKER_ID_MIN_DIGITS,
   isValidPhone,
+  isValidWorkerId,
   phoneError,
+  workerIdError,
 } from "@/lib/validation";
 
 type Worker = {
@@ -178,8 +178,8 @@ export default function WorkersPage() {
       setError("Choose a valid trade.");
       return;
     }
-    if (!editing && !isValidBusinessCode(workerCode)) {
-      setError(businessCodeError("Worker ID"));
+    if (!editing && !isValidWorkerId(workerCode)) {
+      setError(workerIdError("Worker ID"));
       return;
     }
     const phone = form.phone.trim();
@@ -243,7 +243,7 @@ export default function WorkersPage() {
         <div className="management-card-heading">
           <h2>{editingId !== null ? "Edit worker" : "Worker registration"}</h2>
           <p>
-            Worker ID ({CODE_MIN_DIGITS}+ digits), full name, trade and phone number ({PHONE_MIN_DIGITS}+ digits) are required.
+            Worker ID ({WORKER_ID_MIN_DIGITS}+ digits), full name, trade and phone number ({PHONE_MIN_DIGITS}+ digits) are required.
           </p>
         </div>
         <form className="management-form" onSubmit={addWorker}>
@@ -253,11 +253,11 @@ export default function WorkersPage() {
               value={form.workerCode}
               disabled={editingId !== null}
               onChange={(event) => setForm({ ...form, workerCode: event.target.value })}
-              minLength={CODE_MIN_DIGITS}
-              pattern={`[0-9]{${CODE_MIN_DIGITS},}`}
-              title={businessCodeError("Worker ID")}
+              minLength={WORKER_ID_MIN_DIGITS}
+              pattern={`[0-9]{${WORKER_ID_MIN_DIGITS},}`}
+              title={workerIdError("Worker ID")}
               inputMode="numeric"
-              placeholder="1025001"
+              placeholder="1025"
               required
             />
           </label>
