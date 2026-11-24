@@ -20,10 +20,22 @@ The planned deployment is a modular monolith. Next.js hosts the UI and `/api/v1`
 cp .env.example .env
 # Set DATABASE_URL to a PostgreSQL database you control
 npm install
+npm run db:migrate
+npm run db:seed
 npm run dev
 ```
 
-Open http://localhost:3000. Run `npm run db:migrate` once `DATABASE_URL` points at your database; migrations `0003` and `0004` add the task, payroll, expense and settings tables/columns used by the new modules. The currently implemented routes are documented below.
+Open http://localhost:3000. Migrations `0003` and `0004` add the task, payroll, expense and settings tables/columns used by the new modules. `npm run db:seed` creates the default sign-in account if it does not already exist; the currently implemented routes are documented below.
+
+## Sign in
+
+All pages and API routes require a session. The seeded default credentials are:
+
+| Username | Password |
+| --- | --- |
+| `admin` | `12345678` |
+
+Use **Log out** in the top bar to end the session. The username is stored in the legacy `users.email` column; set `ADMIN_USERNAME`, `ADMIN_PASSWORD` and `ADMIN_NAME` before running `npm run db:seed` to change the defaults.
 
 ## Environment variables
 
@@ -36,7 +48,9 @@ Never commit `.env` or secrets. Production configuration will be completed along
 
 ## Current API surface
 
-- `POST /api/auth/login`
+- `POST /api/auth/login` — accepts `username` (or `email`) and `password`
+- `GET /api/auth/me` — current signed-in user
+- `POST /api/auth/logout` — ends the session
 - `GET/POST /api/workers`, `GET/PUT/DELETE /api/workers/:id`
 - `GET/POST /api/sites`, `GET/PUT/DELETE /api/sites/:id`
 - `GET/POST /api/attendance?date=YYYY-MM-DD`, `DELETE /api/attendance?id=…`
