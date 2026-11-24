@@ -1,15 +1,14 @@
-import { EMPLOYMENT_TYPES, TRADES, isEmploymentType, isTrade } from "@/lib/domain";
-import type { EmploymentType, Trade } from "@/lib/domain";
+import { ALL_TRADES, EMPLOYMENT_TYPE_MAX_LENGTH } from "@/lib/domain";
 import { isValidPhone, phoneError } from "@/lib/validation";
 
 export type ParsedWorkerFields = {
   fullName: string;
   position: string;
-  trade: Trade;
+  trade: string;
   department: string | null;
   site: string | null;
   workLine: string | null;
-  employmentType: EmploymentType;
+  employmentType: string;
   dailyWage: number | null;
   phone: string;
   hireDate: string | null;
@@ -35,9 +34,9 @@ function readDailyWage(fields: Record<string, unknown>): number | null | undefin
 }
 
 /**
- * Shared parsing for worker create/update requests. The legacy `position`
- * column mirrors the selected trade so existing attendance/report queries keep
- * working while the registration UI uses a controlled Trade dropdown.
+ * Shared parsing for worker create/update requests. The Employment type can be
+ * a preset trade or a custom value typed under "Other"; it is mirrored into the
+ * legacy `trade` and `position` columns so attendance/report queries keep working.
  */
 export function parseWorkerFields(fields: Record<string, unknown>):
   | { ok: true; value: ParsedWorkerFields }
@@ -45,26 +44,17 @@ export function parseWorkerFields(fields: Record<string, unknown>):
   const fullName = readText(fields, "fullName");
   if (!fullName) return { ok: false, error: "fullName is required." };
 
-  const tradeValue = readText(fields, "trade") || readText(fields, "position");
-  if (!isTrade(tradeValue)) {
-    return {
-      ok: false,
-      error: `Trade must be one of: ${TRADES.join(", ")}.`,
-    };
+  const employmentValue = readText(fields, "employmentType") || readText(fields, "trade") || ALL_TRADES;
+  if (!employmentValue) {
+    return { ok: false, error: "Employment type is required." };
   }
-  const trade: Trade = tradeValue;
+  if (employmentValue.length > EMPLOYMENT_TYPE_MAX_LENGTH) {
+    return { ok: false, error: `Employment type must be ${EMPLOYMENT_TYPE_MAX_LENGTH} characters or fewer.` };
+  }
+  const employmentType = employmentValue;
 
   const phone = readText(fields, "phone");
   if (!isValidPhone(phone)) return { ok: false, error: phoneError("Phone number") };
-
-  const employmentValue = readText(fields, "employmentType") || "employee";
-  if (!isEmploymentType(employmentValue)) {
-    return {
-      ok: false,
-      error: `Employment type must be one of: ${EMPLOYMENT_TYPES.join(", ")}.`,
-    };
-  }
-  const employmentType: EmploymentType = employmentValue;
 
   const dailyWage = readDailyWage(fields);
   if (dailyWage === undefined) {
@@ -75,8 +65,8 @@ export function parseWorkerFields(fields: Record<string, unknown>):
     ok: true,
     value: {
       fullName,
-      position: trade,
-      trade,
+      position: employmentType,
+      trade: employmentType,
       department: readOptionalText(fields, "department"),
       site: readOptionalText(fields, "site"),
       workLine: readOptionalText(fields, "workLine"),

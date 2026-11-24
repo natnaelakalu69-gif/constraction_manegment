@@ -25,26 +25,24 @@ export const TRADES = [
 
 export type Trade = (typeof TRADES)[number];
 
-/** The dashboard filter adds an "all" option that is never stored on a worker. */
+/** "All Trades" shows the whole roster; "Other" reveals a custom-type input. */
 export const ALL_TRADES = "All Trades";
-export const TRADE_FILTER_OPTIONS = [ALL_TRADES, ...TRADES] as const;
+export const OTHER_EMPLOYMENT_TYPE = "Other";
+export const EMPLOYMENT_TYPE_MAX_LENGTH = 80;
 
-export function isTrade(value: string): value is Trade {
-  return (TRADES as readonly string[]).includes(value);
-}
-
-/** Worker type values are stored with the enterprise employment type vocabulary. */
-export const EMPLOYMENT_TYPES = ["employee", "day_labor", "contractor"] as const;
-export type EmploymentType = (typeof EMPLOYMENT_TYPES)[number];
-
-export const EMPLOYMENT_TYPE_LABELS: Record<EmploymentType, string> = {
-  employee: "Employee",
-  day_labor: "Day Labor",
-  contractor: "Contractor",
-};
+/** The workforce Employment type dropdown shows the full trade list plus Other. */
+export const EMPLOYMENT_TYPE_OPTIONS = [ALL_TRADES, ...TRADES, OTHER_EMPLOYMENT_TYPE] as const;
+export type EmploymentType = (typeof EMPLOYMENT_TYPE_OPTIONS)[number];
 
 export function isEmploymentType(value: string): value is EmploymentType {
-  return (EMPLOYMENT_TYPES as readonly string[]).includes(value);
+  return (EMPLOYMENT_TYPE_OPTIONS as readonly string[]).includes(value);
+}
+
+/** Older employee/day_labor/contractor rows fall back to their trade or position. */
+export const LEGACY_EMPLOYMENT_TYPES = ["employee", "day_labor", "contractor"] as const;
+
+export function isLegacyEmploymentType(value: string): boolean {
+  return (LEGACY_EMPLOYMENT_TYPES as readonly string[]).includes(value.trim().toLowerCase());
 }
 
 export const TASK_STATUSES = ["pending", "in_progress", "completed"] as const;

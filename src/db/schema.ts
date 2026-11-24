@@ -27,7 +27,7 @@ export const workers = pgTable("workers", {
   department: varchar("department", { length: 80 }),
   site: varchar("site", { length: 150 }),
   workLine: varchar("work_line", { length: 80 }),
-  employmentType: varchar("employment_type", { length: 20 }).notNull().default("employee"),
+  employmentType: varchar("employment_type", { length: 80 }).notNull().default("All Trades"),
   dailyWage: integer("daily_wage"),
   hireDate: date("hire_date"),
   status: workerStatus("status").notNull().default("ACTIVE"),
