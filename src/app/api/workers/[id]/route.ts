@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { workers } from "@/db/schema";
 import { isForeignKeyViolation } from "@/lib/postgres-errors";
-import { isValidPhone, phoneError } from "@/lib/validation";
+import { parseWorkerFields } from "@/lib/worker-input";
 
 export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const id = Number((await ctx.params).id);
@@ -18,23 +18,11 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
   if (!body || typeof body !== "object" || Array.isArray(body)) {
     return NextResponse.json({ error: "Request body must be a JSON object." }, { status: 400 });
   }
-  const b = body as Record<string, unknown>;
-  const fullName = typeof b.fullName === "string" ? b.fullName.trim() : "";
-  const position = typeof b.position === "string" ? b.position.trim() : "";
-  const phone = typeof b.phone === "string" ? b.phone.trim() : "";
-  if (!fullName || !position) {
-    return NextResponse.json({ error: "fullName and position are required." }, { status: 400 });
-  }
-  if (!isValidPhone(phone)) {
-    return NextResponse.json({ error: phoneError("Phone number") }, { status: 400 });
-  }
 
-  const [updated] = await db.update(workers).set({
-    fullName, phone: phone || null, position,
-    department: typeof b.department === "string" && b.department.trim() ? b.department.trim() : null,
-    hireDate: typeof b.hireDate === "string" && b.hireDate ? b.hireDate : null,
-    status: b.status === "INACTIVE" ? "INACTIVE" : "ACTIVE",
-  }).where(eq(workers.id, id)).returning();
+  const parsed = parseWorkerFields(body as Record<string, unknown>);
+  if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
+
+  const [updated] = await db.update(workers).set(parsed.value).where(eq(workers.id, id)).returning();
   return updated ? NextResponse.json(updated) : NextResponse.json({ error: "Worker not found" }, { status: 404 });
 }
 

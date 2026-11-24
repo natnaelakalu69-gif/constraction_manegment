@@ -4,6 +4,16 @@ import { useEffect, useState, type FormEvent } from "react";
 import { fetchJson } from "@/lib/client-api";
 import { PaginationControls, usePagination } from "@/components/pagination";
 import {
+  ALL_TRADES,
+  EMPLOYMENT_TYPES,
+  EMPLOYMENT_TYPE_LABELS,
+  TRADES,
+  TRADE_FILTER_OPTIONS,
+  isEmploymentType,
+  isTrade,
+} from "@/lib/domain";
+import type { EmploymentType } from "@/lib/domain";
+import {
   CODE_MIN_DIGITS,
   PHONE_MIN_DIGITS,
   businessCodeError,
@@ -17,7 +27,12 @@ type Worker = {
   workerCode: string;
   fullName: string;
   position: string;
+  trade: string | null;
   department: string | null;
+  site: string | null;
+  workLine: string | null;
+  employmentType: string | null;
+  dailyWage: number | null;
   phone: string | null;
   status: string;
 };
@@ -25,8 +40,12 @@ type Worker = {
 type WorkerForm = {
   workerCode: string;
   fullName: string;
-  position: string;
+  trade: string;
   department: string;
+  site: string;
+  workLine: string;
+  employmentType: EmploymentType;
+  dailyWage: string;
   phone: string;
   status: "ACTIVE" | "INACTIVE";
 };
@@ -34,22 +53,40 @@ type WorkerForm = {
 const emptyForm: WorkerForm = {
   workerCode: "",
   fullName: "",
-  position: "",
+  trade: "",
   department: "",
+  site: "",
+  workLine: "",
+  employmentType: "employee",
+  dailyWage: "",
   phone: "",
   status: "ACTIVE",
 };
 
+function workerTrade(worker: Worker): string {
+  if (worker.trade && isTrade(worker.trade)) return worker.trade;
+  if (isTrade(worker.position)) return worker.position;
+  return "General Laborer";
+}
+
+function formatWage(value: number | null): string {
+  return value === null ? "—" : `${value.toLocaleString()} ETB`;
+}
+
 export default function WorkersPage() {
   const [workers, setWorkers] = useState<Worker[]>([]);
   const [form, setForm] = useState<WorkerForm>(emptyForm);
+  const [tradeFilter, setTradeFilter] = useState<string>(ALL_TRADES);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
-  const pagination = usePagination(workers.length);
-  const visibleWorkers = pagination.pageSlice(workers);
+
+  const filteredWorkers =
+    tradeFilter === ALL_TRADES ? workers : workers.filter((worker) => workerTrade(worker) === tradeFilter);
+  const pagination = usePagination(filteredWorkers.length);
+  const visibleWorkers = pagination.pageSlice(filteredWorkers);
 
   async function loadWorkers() {
     setIsLoading(true);
@@ -82,11 +119,16 @@ export default function WorkersPage() {
 
   function startEdit(worker: Worker) {
     setEditingId(worker.id);
+    setTradeFilter(ALL_TRADES);
     setForm({
       workerCode: worker.workerCode,
       fullName: worker.fullName,
-      position: worker.position,
+      trade: workerTrade(worker),
       department: worker.department ?? "",
+      site: worker.site ?? "",
+      workLine: worker.workLine ?? "",
+      employmentType: worker.employmentType && isEmploymentType(worker.employmentType) ? worker.employmentType : "employee",
+      dailyWage: worker.dailyWage === null ? "" : String(worker.dailyWage),
       phone: worker.phone ?? "",
       status: worker.status === "INACTIVE" ? "INACTIVE" : "ACTIVE",
     });
@@ -126,14 +168,18 @@ export default function WorkersPage() {
     const editing = editingId !== null;
     const workerCode = form.workerCode.trim();
     const fullName = form.fullName.trim();
-    const position = form.position.trim();
+    const trade = form.trade.trim();
 
-    if ((!editing && !workerCode) || !fullName || !position) {
-      setError("Worker code, full name, and position are required.");
+    if ((!editing && !workerCode) || !fullName || !trade) {
+      setError("Worker ID, full name, and trade are required.");
+      return;
+    }
+    if (!isTrade(trade)) {
+      setError("Choose a valid trade.");
       return;
     }
     if (!editing && !isValidBusinessCode(workerCode)) {
-      setError(businessCodeError("Worker code"));
+      setError(businessCodeError("Worker ID"));
       return;
     }
     const phone = form.phone.trim();
@@ -142,7 +188,7 @@ export default function WorkersPage() {
       return;
     }
     if (!editing && workers.some((worker) => worker.workerCode.toLowerCase() === workerCode.toLowerCase())) {
-      setError(`Worker code "${workerCode}" already exists.`);
+      setError(`Worker ID "${workerCode}" already exists.`);
       return;
     }
 
@@ -157,13 +203,17 @@ export default function WorkersPage() {
           ...form,
           workerCode,
           fullName,
-          position,
+          trade,
           department: form.department.trim(),
+          site: form.site.trim(),
+          workLine: form.workLine.trim(),
+          dailyWage: form.dailyWage.trim(),
           phone,
         }),
       });
       setForm(emptyForm);
       setEditingId(null);
+      setTradeFilter(ALL_TRADES);
       setSuccess(editing ? "Worker updated." : "Worker added.");
       await loadWorkers();
     } catch (cause) {
@@ -179,7 +229,7 @@ export default function WorkersPage() {
         <div>
           <div className="eyebrow">WORKFORCE</div>
           <h1>Construction workers</h1>
-          <p className="page-subtitle">Maintain worker records for your active sites.</p>
+          <p className="page-subtitle">Register workers by trade, site and team for your active projects.</p>
         </div>
         <button className="button button-secondary" type="button" onClick={() => void loadWorkers()} disabled={isLoading}>
           {isLoading ? "Loading…" : "Refresh"}
@@ -191,36 +241,76 @@ export default function WorkersPage() {
 
       <section className="management-card">
         <div className="management-card-heading">
-          <h2>{editingId !== null ? "Edit worker" : "Add a worker"}</h2>
+          <h2>{editingId !== null ? "Edit worker" : "Worker registration"}</h2>
           <p>
-            Worker code ({CODE_MIN_DIGITS}+ digits), name, position, and phone number ({PHONE_MIN_DIGITS}+ digits) are required.
+            Worker ID ({CODE_MIN_DIGITS}+ digits), full name, trade and phone number ({PHONE_MIN_DIGITS}+ digits) are required.
           </p>
         </div>
         <form className="management-form" onSubmit={addWorker}>
           <label>
-            Worker code
+            Worker ID
             <input
               value={form.workerCode}
               disabled={editingId !== null}
               onChange={(event) => setForm({ ...form, workerCode: event.target.value })}
               minLength={CODE_MIN_DIGITS}
               pattern={`[0-9]{${CODE_MIN_DIGITS},}`}
-              title={businessCodeError("Worker code")}
+              title={businessCodeError("Worker ID")}
               inputMode="numeric"
+              placeholder="1025001"
               required
             />
           </label>
           <label>
             Full name
-            <input value={form.fullName} onChange={(event) => setForm({ ...form, fullName: event.target.value })} required />
+            <input
+              value={form.fullName}
+              onChange={(event) => setForm({ ...form, fullName: event.target.value })}
+              placeholder="Abebe Kebede"
+              required
+            />
           </label>
           <label>
-            Position
-            <input value={form.position} onChange={(event) => setForm({ ...form, position: event.target.value })} required />
+            Trade
+            <select value={form.trade} onChange={(event) => setForm({ ...form, trade: event.target.value })} required>
+              <option value="">Select trade</option>
+              {TRADES.map((trade) => <option key={trade} value={trade}>{trade}</option>)}
+            </select>
           </label>
           <label>
             Department
-            <input value={form.department} onChange={(event) => setForm({ ...form, department: event.target.value })} />
+            <input
+              value={form.department}
+              onChange={(event) => setForm({ ...form, department: event.target.value })}
+              placeholder="Construction"
+            />
+          </label>
+          <label>
+            Site
+            <input
+              value={form.site}
+              onChange={(event) => setForm({ ...form, site: event.target.value })}
+              placeholder="Project A"
+            />
+          </label>
+          <label>
+            Work line / team
+            <input
+              value={form.workLine}
+              onChange={(event) => setForm({ ...form, workLine: event.target.value })}
+              placeholder="Line 1"
+            />
+          </label>
+          <label>
+            Employment type
+            <select
+              value={form.employmentType}
+              onChange={(event) => setForm({ ...form, employmentType: event.target.value as EmploymentType })}
+            >
+              {EMPLOYMENT_TYPES.map((type) => (
+                <option key={type} value={type}>{EMPLOYMENT_TYPE_LABELS[type]}</option>
+              ))}
+            </select>
           </label>
           <label>
             Phone
@@ -232,7 +322,20 @@ export default function WorkersPage() {
               pattern="[0-9 +().-]+"
               title={phoneError("Phone number")}
               inputMode="tel"
+              placeholder="0912345678"
               required
+            />
+          </label>
+          <label>
+            Daily wage (ETB)
+            <input
+              type="number"
+              value={form.dailyWage}
+              onChange={(event) => setForm({ ...form, dailyWage: event.target.value })}
+              min={0}
+              step={1}
+              inputMode="numeric"
+              placeholder="800"
             />
           </label>
           <label>
@@ -257,23 +360,52 @@ export default function WorkersPage() {
 
       <section className="management-card">
         <div className="management-card-heading">
-          <h2>Workers</h2>
-          <p>{workers.length} records</p>
+          <div>
+            <h2>Workers</h2>
+            <p>{filteredWorkers.length} records</p>
+          </div>
+          <label className="workforce-trade-filter">
+            Trade
+            <select
+              className="summary-filter"
+              value={tradeFilter}
+              onChange={(event) => setTradeFilter(event.target.value)}
+              aria-label="Filter workers by trade"
+            >
+              {TRADE_FILTER_OPTIONS.map((trade) => <option key={trade} value={trade}>{trade}</option>)}
+            </select>
+          </label>
         </div>
         <div className="management-table-wrap">
           <table className="management-table">
             <thead>
               <tr>
-                <th scope="col">Code</th><th scope="col">Name</th><th scope="col">Position</th>
-                <th scope="col">Department</th><th scope="col">Phone</th><th scope="col">Status</th>
+                <th scope="col">ID</th>
+                <th scope="col">Name</th>
+                <th scope="col">Trade</th>
+                <th scope="col">Department</th>
+                <th scope="col">Site</th>
+                <th scope="col">Team</th>
+                <th scope="col">Type</th>
+                <th scope="col">Daily wage</th>
+                <th scope="col">Phone</th>
+                <th scope="col">Status</th>
                 <th scope="col">ACTIONS</th>
               </tr>
             </thead>
             <tbody>
               {visibleWorkers.map((worker) => (
                 <tr key={worker.id} className={editingId === worker.id ? "editing-row" : undefined}>
-                  <td>{worker.workerCode}</td><td>{worker.fullName}</td><td>{worker.position}</td>
-                  <td>{worker.department || "—"}</td><td>{worker.phone || "—"}</td><td>{worker.status}</td>
+                  <td>{worker.workerCode}</td>
+                  <td>{worker.fullName}</td>
+                  <td>{workerTrade(worker)}</td>
+                  <td>{worker.department || "—"}</td>
+                  <td>{worker.site || "—"}</td>
+                  <td>{worker.workLine || "—"}</td>
+                  <td>{worker.employmentType ? EMPLOYMENT_TYPE_LABELS[worker.employmentType as EmploymentType] ?? worker.employmentType : "—"}</td>
+                  <td>{formatWage(worker.dailyWage)}</td>
+                  <td>{worker.phone || "—"}</td>
+                  <td>{worker.status}</td>
                   <td>
                     <div className="row-actions">
                       <button className="button button-secondary row-action" type="button" onClick={() => startEdit(worker)} disabled={isSaving}>
@@ -286,8 +418,14 @@ export default function WorkersPage() {
                   </td>
                 </tr>
               ))}
-              {isLoading && <tr><td className="management-empty" colSpan={7}>Loading workers…</td></tr>}
-              {!isLoading && !error && workers.length === 0 && <tr><td className="management-empty" colSpan={7}>No workers have been added yet.</td></tr>}
+              {isLoading && <tr><td className="management-empty" colSpan={11}>Loading workers…</td></tr>}
+              {!isLoading && !error && filteredWorkers.length === 0 && (
+                <tr>
+                  <td className="management-empty" colSpan={11}>
+                    {tradeFilter === ALL_TRADES ? "No workers have been added yet." : `No ${tradeFilter} workers found.`}
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

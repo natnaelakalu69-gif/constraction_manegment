@@ -25,7 +25,7 @@ npm run db:seed
 npm run dev
 ```
 
-Open http://localhost:3000. Migrations `0003` and `0004` add the task, payroll, expense and settings tables/columns used by the new modules. `npm run db:seed` creates the default sign-in account if it does not already exist. Deployed environments also create it automatically on the first sign-in with the default credentials, so Vercel does not need a separate seed step. The currently implemented routes are documented below.
+Open http://localhost:3000. Migrations `0003`–`0005` add the task, payroll, expense and settings tables/columns plus the expanded workforce registration fields. `npm run db:seed` creates the default sign-in account if it does not already exist. Deployed environments also create it automatically on the first sign-in with the default credentials, so Vercel does not need a separate seed step. The currently implemented routes are documented below.
 
 ## Sign in
 
@@ -36,6 +36,14 @@ All pages and API routes require a session. The seeded default credentials are:
 | `admin` | `12345678` |
 
 Use **Log out** in the top bar to end the session. The username is stored in the legacy `users.email` column; set `ADMIN_USERNAME`, `ADMIN_PASSWORD` and `ADMIN_NAME` in the deployment environment (or before running `npm run db:seed`) to change the defaults.
+
+## Workforce registration
+
+The **Workforce** page registers workers with these fields: Worker ID, Full name, Trade, Department, Site, Work line / team, Employment type, Phone, Daily wage (ETB) and Status. The Trade dropdown contains:
+
+All Trades (dashboard filter only), Mason, Carpenter, Electrician, Plumber, Steel Fixer, Welder, Painter, Rigger, Operator, General Laborer, Tiler, Roofer, Scaffolder, HVAC Technician, Surveyor, Heavy Equipment Mechanic, Foreman, Site Supervisor and Safety Officer.
+
+The workers table also has an **All Trades** filter for reviewing the roster by trade. Employment type values are Employee, Day Labor and Contractor.
 
 ## Environment variables
 

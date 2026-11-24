@@ -1,4 +1,52 @@
-/** Shared option lists for the task, payroll and expense modules. */
+/** Shared option lists for the workforce, task, payroll and expense modules. */
+
+/** Construction trades offered in the workforce registration form. */
+export const TRADES = [
+  "Mason",
+  "Carpenter",
+  "Electrician",
+  "Plumber",
+  "Steel Fixer",
+  "Welder",
+  "Painter",
+  "Rigger",
+  "Operator",
+  "General Laborer",
+  "Tiler",
+  "Roofer",
+  "Scaffolder",
+  "HVAC Technician",
+  "Surveyor",
+  "Heavy Equipment Mechanic",
+  "Foreman",
+  "Site Supervisor",
+  "Safety Officer",
+] as const;
+
+export type Trade = (typeof TRADES)[number];
+
+/** The dashboard filter adds an "all" option that is never stored on a worker. */
+export const ALL_TRADES = "All Trades";
+export const TRADE_FILTER_OPTIONS = [ALL_TRADES, ...TRADES] as const;
+
+export function isTrade(value: string): value is Trade {
+  return (TRADES as readonly string[]).includes(value);
+}
+
+/** Worker type values are stored with the enterprise employment type vocabulary. */
+export const EMPLOYMENT_TYPES = ["employee", "day_labor", "contractor"] as const;
+export type EmploymentType = (typeof EMPLOYMENT_TYPES)[number];
+
+export const EMPLOYMENT_TYPE_LABELS: Record<EmploymentType, string> = {
+  employee: "Employee",
+  day_labor: "Day Labor",
+  contractor: "Contractor",
+};
+
+export function isEmploymentType(value: string): value is EmploymentType {
+  return (EMPLOYMENT_TYPES as readonly string[]).includes(value);
+}
+
 export const TASK_STATUSES = ["pending", "in_progress", "completed"] as const;
 export type TaskStatus = (typeof TASK_STATUSES)[number];
 

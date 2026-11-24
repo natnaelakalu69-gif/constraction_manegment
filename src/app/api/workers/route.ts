@@ -3,7 +3,8 @@ import { desc } from "drizzle-orm";
 import { db } from "@/db";
 import { workers } from "@/db/schema";
 import { isUniqueConstraintViolation } from "@/lib/postgres-errors";
-import { businessCodeError, isValidBusinessCode, isValidPhone, phoneError } from "@/lib/validation";
+import { businessCodeError, isValidBusinessCode } from "@/lib/validation";
+import { parseWorkerFields } from "@/lib/worker-input";
 
 export async function GET() {
   return NextResponse.json(await db.select().from(workers).orderBy(desc(workers.id)));
@@ -22,28 +23,20 @@ export async function POST(req: Request) {
 
   const fields = body as Record<string, unknown>;
   const workerCode = typeof fields.workerCode === "string" ? fields.workerCode.trim() : "";
-  const fullName = typeof fields.fullName === "string" ? fields.fullName.trim() : "";
-  const position = typeof fields.position === "string" ? fields.position.trim() : "";
-  const phone = typeof fields.phone === "string" ? fields.phone.trim() : "";
-  if (!workerCode || !fullName || !position) {
-    return NextResponse.json({ error: "workerCode, fullName and position are required." }, { status: 400 });
+  if (!workerCode) {
+    return NextResponse.json({ error: "workerCode is required." }, { status: 400 });
   }
   if (!isValidBusinessCode(workerCode)) {
     return NextResponse.json({ error: businessCodeError("Worker code") }, { status: 400 });
   }
-  if (!isValidPhone(phone)) {
-    return NextResponse.json({ error: phoneError("Phone number") }, { status: 400 });
-  }
+
+  const parsed = parseWorkerFields(fields);
+  if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
 
   try {
     const [worker] = await db.insert(workers).values({
       workerCode,
-      fullName,
-      phone: phone || null,
-      position,
-      department: typeof fields.department === "string" && fields.department.trim() ? fields.department.trim() : null,
-      hireDate: typeof fields.hireDate === "string" && fields.hireDate ? fields.hireDate : null,
-      status: fields.status === "INACTIVE" ? "INACTIVE" : "ACTIVE",
+      ...parsed.value,
     }).returning();
     return NextResponse.json(worker, { status: 201 });
   } catch (error) {

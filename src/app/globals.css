@@ -537,6 +537,15 @@ a.nav-link:hover {
   font-size: 10px;
 }
 
+.workforce-trade-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #59697a;
+  font-size: 10px;
+  font-weight: 600;
+}
+
 .management-form {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
