@@ -5,6 +5,7 @@ import { fetchJson } from "@/lib/client-api";
 import { PaginationControls, usePagination } from "@/components/pagination";
 import {
   ALL_TRADES,
+  CUSTOM_EMPLOYMENT_TYPE,
   EMPLOYMENT_TYPE_MAX_LENGTH,
   EMPLOYMENT_TYPE_OPTIONS,
   isLegacyEmploymentType,
@@ -40,6 +41,7 @@ type WorkerForm = {
   site: string;
   workLine: string;
   employmentType: string;
+  customEmploymentType: string;
   dailyWage: string;
   phone: string;
   status: "ACTIVE" | "INACTIVE";
@@ -52,6 +54,7 @@ const emptyForm: WorkerForm = {
   site: "",
   workLine: "",
   employmentType: "",
+  customEmploymentType: "",
   dailyWage: "",
   phone: "",
   status: "ACTIVE",
@@ -65,6 +68,10 @@ function workerType(worker: Worker): string {
   const storedPosition = worker.position.trim();
   if (storedPosition && !isLegacyEmploymentType(storedPosition)) return storedPosition;
   return ALL_TRADES;
+}
+
+function isPresetEmploymentType(value: string): boolean {
+  return (EMPLOYMENT_TYPE_OPTIONS as readonly string[]).includes(value) && value !== CUSTOM_EMPLOYMENT_TYPE;
 }
 
 function formatWage(value: number | null): string {
@@ -81,12 +88,13 @@ export default function WorkersPage() {
   const [success, setSuccess] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
 
-  const typeFilterOptions = Array.from(
+  const typeSuggestions = Array.from(
     new Set<string>([
       ...EMPLOYMENT_TYPE_OPTIONS,
       ...workers.map(workerType),
     ])
   );
+  const typeFilterOptions = typeSuggestions.filter((type) => type !== CUSTOM_EMPLOYMENT_TYPE);
   const filteredWorkers =
     typeFilter === ALL_TRADES ? workers : workers.filter((worker) => workerType(worker) === typeFilter);
   const pagination = usePagination(filteredWorkers.length);
@@ -122,6 +130,8 @@ export default function WorkersPage() {
   }, []);
 
   function startEdit(worker: Worker) {
+    const currentType = workerType(worker);
+    const isPreset = isPresetEmploymentType(currentType);
     setEditingId(worker.id);
     setTypeFilter(ALL_TRADES);
     setForm({
@@ -130,7 +140,8 @@ export default function WorkersPage() {
       department: worker.department ?? "",
       site: worker.site ?? "",
       workLine: worker.workLine ?? "",
-      employmentType: workerType(worker),
+      employmentType: isPreset ? currentType : CUSTOM_EMPLOYMENT_TYPE,
+      customEmploymentType: isPreset ? "" : currentType,
       dailyWage: worker.dailyWage === null ? "" : String(worker.dailyWage),
       phone: worker.phone ?? "",
       status: worker.status === "INACTIVE" ? "INACTIVE" : "ACTIVE",
@@ -172,12 +183,24 @@ export default function WorkersPage() {
     const workerCode = form.workerCode.trim();
     const fullName = form.fullName.trim();
     const employmentType = form.employmentType.trim();
+    const customType = form.customEmploymentType.trim();
+    let savedType = employmentType;
 
     if ((!editing && !workerCode) || !fullName || !employmentType) {
       setError("Worker ID, full name, and employment type are required.");
       return;
     }
-    if (employmentType.length > EMPLOYMENT_TYPE_MAX_LENGTH) {
+    if (employmentType === CUSTOM_EMPLOYMENT_TYPE) {
+      if (!customType) {
+        setError("Type the custom employment type.");
+        return;
+      }
+      if (customType.length > EMPLOYMENT_TYPE_MAX_LENGTH) {
+        setError(`Employment type must be ${EMPLOYMENT_TYPE_MAX_LENGTH} characters or fewer.`);
+        return;
+      }
+      savedType = customType;
+    } else if (employmentType.length > EMPLOYMENT_TYPE_MAX_LENGTH) {
       setError(`Employment type must be ${EMPLOYMENT_TYPE_MAX_LENGTH} characters or fewer.`);
       return;
     }
@@ -205,7 +228,7 @@ export default function WorkersPage() {
         body: JSON.stringify({
           workerCode,
           fullName,
-          employmentType,
+          employmentType: savedType,
           department: form.department.trim(),
           site: form.site.trim(),
           workLine: form.workLine.trim(),
@@ -298,19 +321,38 @@ export default function WorkersPage() {
             />
           </label>
           <datalist id="employment-type-options">
-            {typeFilterOptions.map((type) => <option key={type} value={type} />)}
+            {typeSuggestions.map((type) => <option key={type} value={type} />)}
           </datalist>
           <label>
             Employment type
             <input
               list="employment-type-options"
               value={form.employmentType}
-              onChange={(event) => setForm({ ...form, employmentType: event.target.value })}
+              onChange={(event) => {
+                const value = event.target.value;
+                setForm({
+                  ...form,
+                  employmentType: value,
+                  customEmploymentType: value === CUSTOM_EMPLOYMENT_TYPE ? form.customEmploymentType : "",
+                });
+              }}
               maxLength={EMPLOYMENT_TYPE_MAX_LENGTH}
               placeholder="Select or type a type"
               required
             />
           </label>
+          {form.employmentType === CUSTOM_EMPLOYMENT_TYPE && (
+            <label>
+              Custom type
+              <input
+                value={form.customEmploymentType}
+                onChange={(event) => setForm({ ...form, customEmploymentType: event.target.value })}
+                maxLength={EMPLOYMENT_TYPE_MAX_LENGTH}
+                placeholder="e.g. Concrete Finisher"
+                required
+              />
+            </label>
+          )}
           <label>
             Phone
             <input

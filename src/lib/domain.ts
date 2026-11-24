@@ -28,10 +28,16 @@ export type Trade = (typeof TRADES)[number];
 /** "All Trades" shows the whole roster; "Other" reveals a custom-type input. */
 export const ALL_TRADES = "All Trades";
 export const OTHER_EMPLOYMENT_TYPE = "Other";
+export const CUSTOM_EMPLOYMENT_TYPE = "Custom type";
 export const EMPLOYMENT_TYPE_MAX_LENGTH = 80;
 
-/** The workforce Employment type dropdown shows the full trade list plus Other. */
-export const EMPLOYMENT_TYPE_OPTIONS = [ALL_TRADES, ...TRADES, OTHER_EMPLOYMENT_TYPE] as const;
+/** The dropdown suggestions include a Custom type option that reveals a text field. */
+export const EMPLOYMENT_TYPE_OPTIONS = [
+  ALL_TRADES,
+  ...TRADES,
+  OTHER_EMPLOYMENT_TYPE,
+  CUSTOM_EMPLOYMENT_TYPE,
+] as const;
 
 /** Older employee/day_labor/contractor rows fall back to their trade or position. */
 export const LEGACY_EMPLOYMENT_TYPES = ["employee", "day_labor", "contractor"] as const;

@@ -6,4 +6,4 @@ SET "employment_type" = CASE
   WHEN "position" IN ('Mason', 'Carpenter', 'Electrician', 'Plumber', 'Steel Fixer', 'Welder', 'Painter', 'Rigger', 'Operator', 'General Laborer', 'Tiler', 'Roofer', 'Scaffolder', 'HVAC Technician', 'Surveyor', 'Heavy Equipment Mechanic', 'Foreman', 'Site Supervisor', 'Safety Officer') THEN "position"
   ELSE 'All Trades'
 END
-WHERE "employment_type" NOT IN ('All Trades', 'Mason', 'Carpenter', 'Electrician', 'Plumber', 'Steel Fixer', 'Welder', 'Painter', 'Rigger', 'Operator', 'General Laborer', 'Tiler', 'Roofer', 'Scaffolder', 'HVAC Technician', 'Surveyor', 'Heavy Equipment Mechanic', 'Foreman', 'Site Supervisor', 'Safety Officer', 'Other');
+WHERE "employment_type" NOT IN ('All Trades', 'Mason', 'Carpenter', 'Electrician', 'Plumber', 'Steel Fixer', 'Welder', 'Painter', 'Rigger', 'Operator', 'General Laborer', 'Tiler', 'Roofer', 'Scaffolder', 'HVAC Technician', 'Surveyor', 'Heavy Equipment Mechanic', 'Foreman', 'Site Supervisor', 'Safety Officer', 'Other', 'Custom type');
